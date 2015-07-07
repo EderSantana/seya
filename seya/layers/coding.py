@@ -28,7 +28,7 @@ class SparseCoding(Layer):
                  init='glorot_uniform',
                  activation='linear',
                  truncate_gradient=-1,
-                 gamma=.01,
+                 gamma=.1,
                  n_steps=10,
                  batch_size=128,
                  return_reconstruction=False):
