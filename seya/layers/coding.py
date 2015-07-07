@@ -26,7 +26,7 @@ def _RMSPropStep(cost, states, accum_1, accum_2):
 class SparseCoding(Layer):
     def __init__(self, input_dim, output_dim,
                  init='glorot_uniform',
-                 activation='identity',
+                 activation='linear',
                  truncate_gradient=-1,
                  gamma=.01,
                  n_steps=10,
