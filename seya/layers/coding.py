@@ -50,7 +50,7 @@ class SparseCoding(Layer):
 
     def _step(self, x_t, accum_1, accum_2, inputs):
         outputs = self.activation(T.dot(x_t, self.W))
-        rec_error = T.sqr(input - outputs).sum()
+        rec_error = T.sqr(inputs - outputs).sum()
         l1_norm = (self.gamma * diff_abs(x_t)).sum()
         cost = rec_error + l1_norm
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
