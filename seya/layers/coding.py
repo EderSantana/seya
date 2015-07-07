@@ -30,6 +30,7 @@ class SparseCoding(Layer):
                  truncate_gradient=-1,
                  gamma=.01,
                  n_steps=10,
+                 batch_size=128,
                  return_reconstruction=False):
 
         super(SparseCoding, self).__init__()
@@ -38,12 +39,13 @@ class SparseCoding(Layer):
         self.output_dim = output_dim
         self.gamma = gamma
         self.n_steps = n_steps
+        self.batch_size = batch_size
         self.truncate_gradient = truncate_gradient
         self.activation = activations.get(activation)
         self.return_reconstruction = return_reconstruction
         self.input = T.matrix()
 
-        self.W = self.init((self.input_dim, self.output_dim))
+        self.W = self.init((self.output_dim, self.input_dim))
         self.params = [self.W, ]
 
     def _step(self, x_t, accum_1, accum_2, inputs):
@@ -56,7 +58,7 @@ class SparseCoding(Layer):
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
-        initial_states = alloc_zeros_matrix(self.output_dim, self.input_dim)
+        initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
