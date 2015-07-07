@@ -4,6 +4,7 @@ import theano.tensor as T
 from keras.layers.core import Layer
 from keras import activations, initializations
 from keras.utils.theano_utils import alloc_zeros_matrix
+from keras.regularizers import l2
 
 from ..utils import diff_abs
 
@@ -31,7 +32,9 @@ class SparseCoding(Layer):
                  gamma=.1,
                  n_steps=10,
                  batch_size=128,
-                 return_reconstruction=False):
+                 return_reconstruction=False,
+                 W_regularizer=l2(.01),
+                 activity_regularizer=None):
 
         super(SparseCoding, self).__init__()
         self.init = initializations.get(init)
@@ -47,6 +50,14 @@ class SparseCoding(Layer):
 
         self.W = self.init((self.output_dim, self.input_dim))
         self.params = [self.W, ]
+
+        self.regularizers = []
+        if W_regularizer:
+            W_regularizer.set_param(self.W)
+            self.regularizers.append(W_regularizer)
+        if activity_regularizer:
+            activity_regularizer.set_layer(self)
+            self.regularizers.append(activity_regularizer)
 
     def _step(self, x_t, accum_1, accum_2, inputs):
         outputs = self.activation(T.dot(x_t, self.W))
