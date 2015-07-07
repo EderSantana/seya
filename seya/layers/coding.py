@@ -62,7 +62,7 @@ class SparseCoding(Layer):
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
-            outputs_info=[initial_states, ]*3,
+            outputs_info=[initial_states, ]*3 + [None, ],
             non_sequences=inputs,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
