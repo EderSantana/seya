@@ -31,7 +31,7 @@ class SparseCoding(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 batch_size=128,
+                 batch_size=100,
                  return_reconstruction=False,
                  W_regularizer=l2(.01),
                  activity_regularizer=None):
