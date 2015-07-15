@@ -1,25 +1,26 @@
 import types
 import theano.tensor as T
 
+from keras.layers.recurrent import Recurrent
+
 
 def _get_reversed_input(self, train=False):
-    X = self.get_output(train)
+    if hasattr(self, 'previous'):
+        X = self.previous.get_output(train=train)
+    else:
+        X = self.input
     return X[::-1]
 
 
-def Bidirectional(Recurrent):
+class Bidirectional(Recurrent):
     def __init__(self, forward, backward):
         super(Bidirectional, self).__init__()
         self.forward = forward
         self.backward = backward
         self.params = forward.params + backward.params
-        self.regularizers = forward.regularizers + backward.regularizers
-        if forward.return_sequence == backward.return_sequence:
-            self.return_sequence = forward.return_sequence
-        else:
-            raise ValueError("Forward and Backward Layers of Biderectional network "
-                             "must have the same value for `return_sequence`")
         self.input = T.tensor3()
+        self.forward.input = self.input
+        self.backward.input = self.input
 
     def set_previous(self, layer):
         if not self.supports_masked_input() and layer.get_output_mask() is not None:
