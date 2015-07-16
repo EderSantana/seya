@@ -2,6 +2,27 @@ import numpy as np
 import theano.tensor as tensor
 
 
+def s2s_to_s2t(sequences, targets):
+    '''
+    Transforms as sequence to sequence problem to a sequence to target.
+    It does so by replicating the input dataset a lot.
+    So use this only with small datasets.
+    Also, there is no way of passing the hidden states from one batch to another,
+    thus this is not the best way to solve this problem.
+    '''
+    X = []
+    Xrev = []  # reversed dataset
+    y = []
+    for seq, tar in zip(sequences, targets):
+        if not len(seq) == len(tar):
+            raise ValueError("Sequences and Targets must have the same length.")
+        for i in range(len(seq)):
+            X.append(seq[:i])
+            Xrev.append(seq[:i:-1])
+            y.append(tar[i])
+    return X, Xrev, y
+
+
 def pad_md_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0.):
     '''Pad multi-dimensional sequence
     Similar to keras.preprocesing.sequence but supports a third dimension:
