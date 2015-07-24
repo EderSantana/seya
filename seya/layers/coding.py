@@ -124,6 +124,9 @@ class ConvSparseCoding(Layer):
         if border_mode == 'valid':
             self.code_row = input_row + nb_row - 1
             self.code_col = input_col + nb_col - 1
+        else:
+            raise ValueError("boder_model {0} not implemented yet.".format(
+                border_mode))
 
         self.input = T.tensor4()
         self.W_shape = (nb_filter, stack_size, nb_row, nb_col)
@@ -173,13 +176,18 @@ class ConvSparseCoding(Layer):
 
 
 class TemporalSparseCoding(Recurrent):
-    def __init__(self, prototype, truncate_gradient=-1, return_reconstruction=True):
+    def __init__(self, prototype, truncate_gradient=-1,
+                 return_reconstruction=True,
+                 init='glorot_uniform'):
 
         super(TemporalSparseCoding, self).__init__()
+        self.init = initializations(init)
+        self.W = self.init((self.output_dim, self.input_dim))
         self.prototype = prototype
-        self.W = prototype.W
+        self.W = prototype.W  # Sparse coding parameter I - Wx
+        self.A = self.init(self.W.get_value().shape)  # Predictive transition x_t - Ax_t-1
         self.regularizers = prototype.regularizers
-        self.params = prototype.params
+        self.params = prototype.params + [self.A, ]
         self.batch_size = prototype.batch_size
         self.input_dim = prototype.input_dim
         self.output_dim = prototype.output_dim
@@ -188,7 +196,7 @@ class TemporalSparseCoding(Recurrent):
         self.input = T.tensor3()
 
     def _step(self, inputs, x_t,):
-        new_x = self.prototype._get_output(inputs, prior=x_t)
+        new_x = self.prototype._get_output(inputs, prior=T.dot(x_t, self.A))
         outputs = self.activation(T.dot(new_x, self.W))
         return new_x, outputs
 

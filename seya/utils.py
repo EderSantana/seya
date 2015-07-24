@@ -17,8 +17,20 @@ def s2s_to_s2t(sequences, targets):
         if not len(seq) == len(tar):
             raise ValueError("Sequences and Targets must have the same length.")
         for i in range(len(seq)):
-            X.append(seq[:i])
-            Xrev.append(seq[:i:-1])
+            #if i == 0:
+            #    X.append(seq[0])
+            #    Xrev.append(seq[::-1])
+            #elif i == len(seq)-1:
+            #    X.append(seq)
+            #    Xrev.append(seq[-1])
+            #else:
+            X.append(seq[:i+1])
+            if i == 0:
+                Xrev.append(seq[::-1])
+            else:
+                Xrev.append(seq[:i-1:-1])
+            # X.append(seq[:i+1])
+            # Xrev.append(seq[:i-1:-1])
             y.append(tar[i])
     return X, Xrev, y
 
