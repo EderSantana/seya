@@ -1,3 +1,4 @@
+import numpy as np
 import theano
 import theano.tensor as T
 
@@ -8,6 +9,8 @@ from keras.utils.theano_utils import alloc_zeros_matrix
 from keras.regularizers import l2
 
 from ..utils import diff_abs
+
+floatX = theano.config.floatX
 
 
 def _RMSPropStep(cost, states, accum_1, accum_2):
@@ -60,6 +63,9 @@ class SparseCoding(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
+    def get_initial_states(self):
+        return alloc_zeros_matrix(self.batch_size, self.output_dim)
+
     def _step(self, x_t, accum_1, accum_2, inputs, prior):
         outputs = self.activation(T.dot(x_t, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
@@ -70,7 +76,7 @@ class SparseCoding(Layer):
         return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train=False, prior=0.):
-        initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
+        initial_states = self.get_initial_states()
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
@@ -83,6 +89,77 @@ class SparseCoding(Layer):
             return outputs[-1][-1]
         else:
             return outputs[0][-1]
+
+    def get_output(self, train=False):
+        inputs = self.get_input(train)
+        return self._get_output(inputs, train)
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "input_dim": self.input_dim,
+                "output_dim": self.output_dim,
+                "init": self.init.__name__,
+                "activation": self.activation.__name__,
+                "truncate_gradient": self.truncate_gradient,
+                "return_reconstruction": self.return_reconstruction}
+
+
+class VarianceCoding(Layer):
+    def __init__(self, input_dim, output_dim,
+                 init='uniform',
+                 truncate_gradient=-1,
+                 gamma=.1,
+                 n_steps=10,
+                 batch_size=100,
+                 W_regularizer=l2(.01),
+                 activity_regularizer=None):
+
+        super(VarianceCoding, self).__init__()
+        self.init = initializations.get(init)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.gamma = gamma
+        self.n_steps = n_steps
+        self.batch_size = batch_size
+        self.truncate_gradient = truncate_gradient
+        self.activation = lambda x: .5*(1 + T.exp(-x))
+        self.input = T.matrix()
+
+        self.W = self.init((self.output_dim, self.input_dim))
+        self.params = [self.W]
+
+        self.regularizers = []
+        if W_regularizer:
+            W_regularizer.set_param(self.W)
+            self.regularizers.append(W_regularizer)
+        if activity_regularizer:
+            activity_regularizer.set_layer(self)
+            self.regularizers.append(activity_regularizer)
+
+    def get_initial_states(self):
+        return alloc_zeros_matrix(self.batch_size, self.output_dim)
+
+    def _step(self, x_t, accum_1, accum_2, inputs, prior):
+        outputs = self.activation(T.dot(x_t, self.W))
+        # rec_error = T.sqr(inputs - outputs).sum()
+        l1_norm = self.gamma * outputs * diff_abs(inputs)
+        own_norm = (diff_abs(x_t)).sum() * self.gamma
+        l1_inov = T.sqr(x_t - prior).sum() * self.gamma / 10.
+        cost = l1_norm.sum() + l1_inov + own_norm
+        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
+        return x, new_accum_1, new_accum_2, outputs, l1_norm
+
+    def _get_output(self, inputs, train=False, prior=0.):
+        initial_states = self.get_initial_states()
+        outputs, updates = theano.scan(
+            self._step,
+            sequences=[],
+            outputs_info=[initial_states, ]*3 + [None, None],
+            non_sequences=[inputs, prior],
+            n_steps=self.n_steps,
+            truncate_gradient=self.truncate_gradient)
+
+        return T.sqrt(outputs[-1][-1])
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
@@ -144,6 +221,10 @@ class ConvSparseCoding(Layer):
 
         self.return_reconstruction = return_reconstruction
 
+    def get_initial_states(self):
+        return alloc_zeros_matrix(self.batch_size, self.stack_size,
+                                  self.code_row, self.code_col)
+
     def _step(self, x_t, accum_1, accum_2, inputs):
         conv_out = T.nnet.conv.conv2d(x_t, self.W, border_mode=self.border_mode,
                                       subsample=self.subsample)
@@ -155,8 +236,7 @@ class ConvSparseCoding(Layer):
         return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train):
-        initial_states = alloc_zeros_matrix(self.batch_size, self.stack_size,
-                                            self.code_row, self.code_col)
+        initial_states = self.get_initial_states()
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
@@ -181,28 +261,53 @@ class TemporalSparseCoding(Recurrent):
                  init='glorot_uniform'):
 
         super(TemporalSparseCoding, self).__init__()
-        self.init = initializations(init)
-        self.W = self.init((self.output_dim, self.input_dim))
+        self.init = initializations.get(init)
         self.prototype = prototype
         self.W = prototype.W  # Sparse coding parameter I - Wx
-        self.A = self.init(self.W.get_value().shape)  # Predictive transition x_t - Ax_t-1
         self.regularizers = prototype.regularizers
-        self.params = prototype.params + [self.A, ]
         self.batch_size = prototype.batch_size
-        self.input_dim = prototype.input_dim
-        self.output_dim = prototype.output_dim
+        self.activation = prototype.activation
+        try:
+            self.is_conv = False
+            self.input_dim = prototype.input_dim
+            self.output_dim = prototype.output_dim
+            self.A = self.init((
+                self.output_dim, self.output_dim))  # Predictive transition x_t - Ax_t-1
+            self.input = T.tensor3()
+        except:
+            self.is_conv = True
+            self.nb_filter = prototype.nb_filter
+            self.stack_size = prototype.stack_size
+            self.nb_row = prototype.nb_row
+            self.nb_col = prototype.nb_col
+            self.A = self.init(self.W.get_value().shape)
+            self.input = T.TensorType(floatX, (False,)*5)()
+
+        self.params = prototype.params + [self.A, ]
         self.return_reconstruction = return_reconstruction
         self.truncate_gradient = truncate_gradient
-        self.input = T.tensor3()
 
-    def _step(self, inputs, x_t,):
-        new_x = self.prototype._get_output(inputs, prior=T.dot(x_t, self.A))
-        outputs = self.activation(T.dot(new_x, self.W))
+    def _step(self, inputs, x_t):
+        if self.is_conv:
+            prior = T.nnet.conv.conv2d(x_t, self.W, border_mode='full',
+                                       subsample=self.subsample)
+            br = slice(np.ceil(self.nb_row/2. - 1), np.floor(self.nb_row/2. - 1))
+            bc = slice(np.ceil(self.nb_col/2. - 1), np.floor(self.nb_col/2. - 1))
+            prior = prior[:, :, br, bc]
+            new_x = self.prototype._get_output(inputs, prior=prior)
+            inp = T.nnet.conv.conv2d(new_x, self.W, border_mode=self.border_mode,
+                                     subsample=self.subsample)
+            outputs = self.activation(inp)
+        else:
+            prior = T.dot(x_t, self.A)
+            new_x = self.prototype._get_output(inputs, prior=prior)
+            outputs = self.activation(T.dot(new_x, self.W))
         return new_x, outputs
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
-        initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
+        initial_states = self.prototype.get_initial_states()
+        # initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
         outputs, updates = theano.scan(
             self._step,
             sequences=[inputs],
@@ -216,8 +321,8 @@ class TemporalSparseCoding(Recurrent):
 
     def get_config(self):
         return {"name": self.__class__.__name__,
-                "input_dim": self.input_dim,
-                "output_dim": self.output_dim,
+                # "input_dim": self.input_dim,
+                # "output_dim": self.output_dim,
                 "init": self.init.__name__,
                 "activation": self.activation.__name__,
                 "truncate_gradient": self.truncate_gradient,
