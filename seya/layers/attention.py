@@ -47,9 +47,9 @@ class SpatialTransformer(Layer):
 
         output = self._transform(theta, X, self.downsample_factor)
         if self.return_theta:
-            return output
-        else:
             return theta.reshape((X.shape[0], 6))
+        else:
+            return output
 
     def _repeat(self, x, n_repeats):
         rep = T.ones((n_repeats,), dtype='int32').dimshuffle('x', 0)
