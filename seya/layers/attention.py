@@ -49,7 +49,7 @@ class SpatialTransformer(Layer):
         if self.return_theta:
             return output
         else:
-            return theano.reshape((X.shape[0], 6))
+            return theta.reshape((X.shape[0], 6))
 
     def _repeat(self, x, n_repeats):
         rep = T.ones((n_repeats,), dtype='int32').dimshuffle('x', 0)
