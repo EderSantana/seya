@@ -10,6 +10,13 @@ class SpatialTransformer(Layer):
     Implements a spatial transformer layer as described in [1]_.
     Borrowed from [2]_:
 
+    downsample_fator : float
+        A value of 1 will keep the orignal size of the image.
+        Values larger than 1 will down sample the image. Values below 1 will
+        upsample the image.
+        example image: height= 100, width = 200
+        downsample_factor = 2
+        output image will then be 50, 100
 
     References
     ----------
@@ -31,6 +38,7 @@ class SpatialTransformer(Layer):
         self.regularizers = localization_net.regularizers
         self.constraints = localization_net.constraints
         self.input = localization_net.input # this should be T.tensor4()
+        self.return_theta = return_theta
 
     def get_output(self, train=False):
         X = self.get_input()
