@@ -168,3 +168,28 @@ class SpatialTransformer(Layer):
                            (num_batch, out_height, out_width, num_channels))
         output = output.dimshuffle(0, 3, 1, 2)
         return output
+
+
+class AttentionST(SpatialTransformer):
+    '''
+    A Spatial Transformer limitted to scaling,
+    cropping and translation.
+    '''
+    def __init__(self, *args, **kwargs):
+        super(AttentionST, self).__init__(*args, **kwargs)
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        # locnet.get_output(X) should be shape (batchsize, 6)
+        mask = np.ones((2, 3))
+        mask[1, 0] = 0
+        mask[0, 1] = 0
+        mask = T.shared(mask)
+        theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
+        theta = theta * mask[None, :, :]
+
+        output = self._transform(theta, X, self.downsample_factor)
+        if self.return_theta:
+            return theta.reshape((X.shape[0], 6))
+        else:
+            return output
