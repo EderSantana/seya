@@ -9,10 +9,14 @@ Seya
         :target: https://pypi.python.org/pypi/seya
 
 
-Deep Learning models and utility functions for Keras
+Bringing up some extra Cosmo to Keras.
 
 * Free software: BSD license
 * Documentation: https://seya.readthedocs.org.
+
+Why Seya?
+--------
+Those smart guys may know a lot about ancient greek mathematicians and poetry. But the first thing I remember about Greece is my childhood favorite anime, Saint Seya.
 
 Features
 --------
