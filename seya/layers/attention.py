@@ -185,7 +185,7 @@ class AttentionST(SpatialTransformer):
         mask = np.ones((2, 3))
         mask[1, 0] = 0
         mask[0, 1] = 0
-        mask = theano.shared(mask)
+        mask = theano.shared(mask.astype(floatX))
         theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
         theta = theta * mask[None, :, :]
 
