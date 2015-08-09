@@ -1,7 +1,7 @@
 import theano.tensor as T
 
 from itertools import combinations
-from keras.layers.core import MaskedLayer, Dense
+from keras.layers.core import MaskedLayer, Layer, Dense
 
 
 class Replicator(MaskedLayer):
@@ -14,6 +14,26 @@ class Replicator(MaskedLayer):
     def get_output(self, train=False):
         X = self.get_input(train)
         output = X[:, None, :] * self.ones[None, :, None]
+        return output
+
+
+class Unpool(Layer):
+    '''Unpooling layer for convolutional autoencoders
+    inspired by: https://github.com/mikesj-public/convolutional_autoencoder/blob/master/mnist_conv_autoencode.py
+
+    Parameter:
+    ----------
+    ds: list with two values each one defines how much that dimension will
+    be upsampled.
+    '''
+    def __init__(self, ds):
+        super(Unpool, self.).__init__()
+        self.input = T.tensor4() #
+        self.ds = ds
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        output = X.repeat(self.ds[0], axis=2).repeat(self.ds[1], axis=3)
         return output
 
 
