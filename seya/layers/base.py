@@ -27,7 +27,7 @@ class Unpool(Layer):
     be upsampled.
     '''
     def __init__(self, ds):
-        super(Unpool, self.).__init__()
+        super(Unpool, self).__init__()
         self.input = T.tensor4() #
         self.ds = ds
 
