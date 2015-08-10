@@ -38,13 +38,19 @@ class SpatialTransformer(Layer):
         self.params = localization_net.params
         self.regularizers = localization_net.regularizers
         self.constraints = localization_net.constraints
-        self.input = localization_net.input # this should be T.tensor4()
+        self.input = localization_net.input  # this should be T.tensor4()
         self.return_theta = return_theta
 
     def get_output(self, train=False):
         X = self.get_input()
         # locnet.get_output(X) should be shape (batchsize, 6)
-        theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
+        theta = self.locnet.get_output(train)  # .reshape((X.shape[0], 2, 3))
+        thetas = T.nnet.sigmoid(theta[:, :4])
+        thetat = T.nnet.sigmoid(theta[:, 4:]) * X.shape[2]
+        theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
+                               thetat.reshape((X.shape[0], 2, 1))],
+                              axis=2)
+        theta = T.cast(theta, floatX)
 
         output = self._transform(theta, X, self.downsample_factor)
         if self.return_theta:
@@ -56,7 +62,6 @@ class SpatialTransformer(Layer):
         rep = T.ones((n_repeats,), dtype='int32').dimshuffle('x', 0)
         x = T.dot(x.reshape((-1, 1)), rep)
         return x.flatten()
-
 
     def _interpolate(self, im, x, y, downsample_factor):
         # constants
@@ -113,7 +118,6 @@ class SpatialTransformer(Layer):
         output = T.sum([wa*Ia, wb*Ib, wc*Ic, wd*Id], axis=0)
         return output
 
-
     def _linspace(self, start, stop, num):
         # produces results identical to:
         # np.linspace(start, stop, num)
@@ -122,7 +126,6 @@ class SpatialTransformer(Layer):
         num = T.cast(num, floatX)
         step = (stop-start)/(num-1)
         return T.arange(num, dtype=floatX)*step+start
-
 
     def _meshgrid(self, height, width):
         # This should be equivalent to:
@@ -140,7 +143,6 @@ class SpatialTransformer(Layer):
         ones = T.ones_like(x_t_flat)
         grid = T.concatenate([x_t_flat, y_t_flat, ones], axis=0)
         return grid
-
 
     def _transform(self, theta, input, downsample_factor):
         num_batch, num_channels, height, width = input.shape
@@ -197,26 +199,36 @@ class AttentionST(SpatialTransformer):
 
 
 class ST2(Layer):
+    '''This implementation is similar to the equations in the paper
+    but uses a lot more memory
+    '''
     def __init__(self,
                  localization_net,
-                 downsample_factor=1,
+                 img_shape,
+                 downsample_factor=(1, 1),
                  return_theta=False,
                  **kwargs):
         super(ST2, self).__init__()
         self.ds = downsample_factor
         self.locnet = localization_net
+        self.img_shape = img_shape
         self.params = localization_net.params
         self.regularizers = localization_net.regularizers
         self.constraints = localization_net.constraints
-        self.input = localization_net.input # this should be T.tensor4()
+        self.input = localization_net.input  # this should be T.tensor4()
         self.return_theta = return_theta
 
     def get_output(self, train=False):
         X = self.get_input()
         # locnet.get_output(X) should be shape (batchsize, 6)
-        theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
+        theta = self.locnet.get_output(train)  # .reshape((X.shape[0], 2, 3))
+        thetas = T.nnet.sigmoid(theta[:, :4])
+        thetat = T.nnet.sigmoid(theta[:, 4:]) * X.shape[2]
+        theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
+                               thetat.reshape((X.shape[0], 2, 1))],
+                              axis=2)
 
-        output = self._transform(X, theta, self.downsample_factor)
+        output = self._transform(X, theta, self.ds)
         if self.return_theta:
             return theta.reshape((X.shape[0], 6))
         else:
@@ -225,26 +237,29 @@ class ST2(Layer):
     def _meshgrid(self, row, col):
         x, y = np.meshgrid(np.linspace(0, row-1, row),
                            np.linspace(0, col-1, col))
-        X = theano.shared(x.flatten().astype(floatX))
-        Y = theano.shared(y.flatten().astype(floatX))
+        # x, y = np.meshgrid(np.linspace(-1, 1, row),
+        #                   np.linspace(-1, 1, col))
+        X = theano.shared(x.astype(floatX))
+        Y = theano.shared(y.astype(floatX))
         ones = T.ones_like(X)
-        grid = T.concatenate([X, Y, ones], axis=0)
+        grid = T.concatenate([X[None, :, :], Y[None, :, :], ones[None, :, :]], axis=0)
         return grid
 
     def _transform(self, X, theta, ds):
-        b, chan, row, col = X.shape
+        b = X.shape[0]
+        chan, row, col = self.img_shape
         new_row = row / ds[0]
         new_col = col / ds[1]
         grid = self._meshgrid(new_row, new_col)
-        new_grid = T.dot(theta, grid)
+        new_grid = T.tensordot(theta, grid.reshape((3, new_row*new_col)), axes=(2, 0))
         output = []
         for i in range(chan):
             out = X[:, i, :, :, None] * T.maximum(0,
-                                        1 - abs(new_grid[:, None, None, :] -
-                                        grid[None, :, :, None])) * T.maximum(0,
-                                        1 - abs(new_grid[:, None, None, :]
-                                        - grid[None, :, :, None]))
-            out = out.sum(axis=(1, 2))
+                                        1 - abs(new_grid[:, None, None, 0, :] -
+                                        grid[None, 0, :, :, None])) * T.maximum(0,
+                                        1 - abs(new_grid[:, None, None, 1, :]
+                                        - grid[None, 1, :, :, None]))
+            out = out.sum(axis=(1, 2)).reshape((b, row, col))
             output.append(out.reshape((b, new_row,
                                        new_col)).dimshuffle(0, 'x', 1, 2))
         output = T.concatenate(output, axis=1)
