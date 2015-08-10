@@ -202,8 +202,8 @@ class ST2(Layer):
                  downsample_factor=1,
                  return_theta=False,
                  **kwargs):
-        super(SpatialTransformer, self).__init__()
-        self.downsample_factor = downsample_factor
+        super(ST2, self).__init__()
+        self.ds = downsample_factor
         self.locnet = localization_net
         self.params = localization_net.params
         self.regularizers = localization_net.regularizers
@@ -231,16 +231,21 @@ class ST2(Layer):
         grid = T.concatenate([X, Y, ones], axis=0)
         return grid
 
-    def _transform(X, theta, ds):
-        _, chan, row, col = X.shape
-        grid = self._meshgrid(row, col)
+    def _transform(self, X, theta, ds):
+        b, chan, row, col = X.shape
+        new_row = row / ds[0]
+        new_col = col / ds[1]
+        grid = self._meshgrid(new_row, new_col)
         new_grid = T.dot(theta, grid)
         output = []
         for i in range(chan):
-            out = X[:, i, :, :, None] * \
-                T.maximum(0, 1 - abs(new_grid[:, None, None, :] - grid[None, :, :, None]))* \
-                T.maximum(0, 1 - abs(new_grid[:, None, None, :] - grid[None, :, :, None]))
+            out = X[:, i, :, :, None] * T.maximum(0,
+                                        1 - abs(new_grid[:, None, None, :] -
+                                        grid[None, :, :, None])) * T.maximum(0,
+                                        1 - abs(new_grid[:, None, None, :]
+                                        - grid[None, :, :, None]))
             out = out.sum(axis=(1, 2))
-            output.append(out.dimshuffle(0, 'x', 1, 2))
+            output.append(out.reshape((b, new_row,
+                                       new_col)).dimshuffle(0, 'x', 1, 2))
         output = T.concatenate(output, axis=1)
         return output
