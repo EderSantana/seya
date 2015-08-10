@@ -194,3 +194,53 @@ class AttentionST(SpatialTransformer):
             return theta.reshape((X.shape[0], 6))
         else:
             return output
+
+
+class ST2(Layer):
+    def __init__(self,
+                 localization_net,
+                 downsample_factor=1,
+                 return_theta=False,
+                 **kwargs):
+        super(SpatialTransformer, self).__init__()
+        self.downsample_factor = downsample_factor
+        self.locnet = localization_net
+        self.params = localization_net.params
+        self.regularizers = localization_net.regularizers
+        self.constraints = localization_net.constraints
+        self.input = localization_net.input # this should be T.tensor4()
+        self.return_theta = return_theta
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        # locnet.get_output(X) should be shape (batchsize, 6)
+        theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
+
+        output = self._transform(X, theta, self.downsample_factor)
+        if self.return_theta:
+            return theta.reshape((X.shape[0], 6))
+        else:
+            return output
+
+    def _meshgrid(self, row, col):
+        x, y = np.meshgrid(np.linspace(0, row-1, row),
+                           np.linspace(0, col-1, col))
+        X = theano.shared(x.flatten().astype(floatX))
+        Y = theano.shared(y.flatten().astype(floatX))
+        ones = T.ones_like(X)
+        grid = T.concatenate([X, Y, ones], axis=0)
+        return grid
+
+    def _transform(X, theta, ds):
+        _, chan, row, col = X.shape
+        grid = self._meshgrid(row, col)
+        new_grid = T.dot(theta, grid)
+        output = []
+        for i in range(chan):
+            out = X[:, i, :, :, None] * \
+                T.maximum(0, 1 - abs(new_grid[:, None, None, :] - grid[None, :, :, None]))* \
+                T.maximum(0, 1 - abs(new_grid[:, None, None, :] - grid[None, :, :, None]))
+            out = out.sum(axis=(1, 2))
+            output.append(out.dimshuffle(0, 'x', 1, 2))
+        output = T.concatenate(output, axis=1)
+        return output
