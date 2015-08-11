@@ -159,7 +159,8 @@ class VarianceCoding(Layer):
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
-        return T.sqrt(outputs[-1][-1])
+        # return T.sqrt(outputs[-1][-1])
+        return outputs[-1][-1]
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
@@ -256,7 +257,7 @@ class ConvSparseCoding(Layer):
 
 
 class TemporalSparseCoding(Recurrent):
-    def __init__(self, prototype, truncate_gradient=-1,
+    def __init__(self, prototype, transition_net, truncate_gradient=-1,
                  return_reconstruction=True,
                  init='glorot_uniform'):
 
@@ -267,6 +268,7 @@ class TemporalSparseCoding(Recurrent):
         self.regularizers = prototype.regularizers
         self.batch_size = prototype.batch_size
         self.activation = prototype.activation
+        self.tnet = transition_net
         try:
             self.is_conv = False
             self.input_dim = prototype.input_dim
@@ -283,29 +285,35 @@ class TemporalSparseCoding(Recurrent):
             self.A = self.init(self.W.get_value().shape)
             self.input = T.TensorType(floatX, (False,)*5)()
 
-        self.params = prototype.params + [self.A, ]
+        self.params = prototype.params  # + [self.A, ]
         self.return_reconstruction = return_reconstruction
         self.truncate_gradient = truncate_gradient
 
     def _step(self, inputs, x_t):
+        tmp = self.tnet.input
+        self.tnet.input = x_t
+        prior = self.tnet.get_output()
+        self.tnet.input = tmp
         if self.is_conv:
-            prior = T.nnet.conv.conv2d(x_t, self.W, border_mode='full',
+            '''
+            prior = T.nnet.conv.conv2d(x_t, self.A, border_mode='full',
                                        subsample=self.subsample)
             br = slice(np.ceil(self.nb_row/2. - 1), np.floor(self.nb_row/2. - 1))
             bc = slice(np.ceil(self.nb_col/2. - 1), np.floor(self.nb_col/2. - 1))
             prior = prior[:, :, br, bc]
+            '''
             new_x = self.prototype._get_output(inputs, prior=prior)
             inp = T.nnet.conv.conv2d(new_x, self.W, border_mode=self.border_mode,
                                      subsample=self.subsample)
             outputs = self.activation(inp)
         else:
-            prior = T.dot(x_t, self.A)
+            # prior = T.dot(x_t, self.A)
             new_x = self.prototype._get_output(inputs, prior=prior)
             outputs = self.activation(T.dot(new_x, self.W))
         return new_x, outputs
 
     def get_output(self, train=False):
-        inputs = self.get_input(train)
+        inputs = self.get_input(train).dimshuffle(1, 0, 2)
         initial_states = self.prototype.get_initial_states()
         # initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
         outputs, updates = theano.scan(
@@ -315,9 +323,9 @@ class TemporalSparseCoding(Recurrent):
             truncate_gradient=self.truncate_gradient)
 
         if self.return_reconstruction:
-            return outputs[-1]
+            return outputs[-1].dimshuffle(1, 0, 2)
         else:
-            return outputs[0]
+            return outputs[0].dimshuffle(1, 0, 2)
 
     def get_config(self):
         return {"name": self.__class__.__name__,
