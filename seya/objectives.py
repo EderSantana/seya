@@ -6,4 +6,4 @@ def gaussianKL(y_true, y_pred):
     mean = y_pred[:, :dim]
     logsigma = y_pred[:, dim:]
     kl = -.5 - logsigma + .5 * (mean**2 + T.exp(2 * logsigma))
-    return kl
+    return kl + 0 * y_true.sum()
