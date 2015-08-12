@@ -1,9 +1,12 @@
 import numpy as np
+import theano
 import theano.tensor as T
 
 from itertools import combinations
 from keras.layers.core import MaskedLayer, Layer, Dense
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+
+floatX = theano.config.floatX
 
 
 class Pass(MaskedLayer):
@@ -34,7 +37,7 @@ class GaussianProd(MaskedLayer):
         X *= self.srng.normal(size=X.shape,
                               avg=self.avg,
                               std=self.std,
-                              dtype=theano.config.floatX)
+                              dtype=floatX)
         return X
 
     def get_config(self):
