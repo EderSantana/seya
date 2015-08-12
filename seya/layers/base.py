@@ -14,7 +14,7 @@ class Pass(MaskedLayer):
     def __init__(self,):
         super(Pass, self).__init__()
         self.input = T.matrix()
-        
+
     def get_output(self, train=False):
         X = self.get_input(train)
         return X
@@ -32,6 +32,7 @@ class GaussianProd(MaskedLayer):
         self.std = std
         self.avg = avg
         self.srng = RandomStreams(seed=np.random.randint(10e6))
+        self.input = T.matrix()
 
     def get_output(self, train=False):
         X = self.get_input(train)
