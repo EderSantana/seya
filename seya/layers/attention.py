@@ -5,15 +5,6 @@ import theano.tensor as T
 from keras.layers.core import Layer
 floatX = theano.config.floatX
 
-class Pass(MaskedLayer):
-    ''' Do literally nothing '''
-    def __init__(self,):
-        super(Pass, self).__init__()
-
-    def get_output(self, train=False):
-        X = self.get_input(train)
-        return X
-
 
 class SpatialTransformer(Layer):
     """Spatial Transformer Layer

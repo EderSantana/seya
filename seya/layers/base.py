@@ -4,6 +4,16 @@ from itertools import combinations
 from keras.layers.core import MaskedLayer, Layer, Dense
 
 
+class Pass(MaskedLayer):
+    ''' Do literally nothing '''
+    def __init__(self,):
+        super(Pass, self).__init__()
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        return X
+
+
 class GaussianNoise(MaskedLayer):
     '''
         Multiply by Gaussian noise.
