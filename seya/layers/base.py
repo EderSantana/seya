@@ -9,22 +9,18 @@ class GaussianNoise(MaskedLayer):
         Multiply by Gaussian noise.
         Similar to dropout but with gaussians instead of binomials.
     '''
-    def __init__(self, avg=0., std=1., test_scale=0):
+    def __init__(self, avg=0., std=1.):
         super(GaussianNoise, self).__init__()
         self.std = std
         self.avg = avg
-        self.test_scale test_scale
         self.srng = RandomStreams(seed=np.random.randint(10e6))
 
     def get_output(self, train=False):
         X = self.get_input(train)
-        if train:
-            X *= self.srng.normal(size=X.shape,
-                                  avg=self.avg,
-                                  std=self.std,
-                                  dtype=theano.config.floatX)
-        else:
-            X *= self.test_scale # default is zero = cut the node off
+        X *= self.srng.normal(size=X.shape,
+                              avg=self.avg,
+                              std=self.std,
+                              dtype=theano.config.floatX)
         return X
 
     def get_config(self):
