@@ -2,6 +2,7 @@ import theano.tensor as T
 
 from itertools import combinations
 from keras.layers.core import MaskedLayer, Layer, Dense
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 
 class Pass(MaskedLayer):
@@ -14,13 +15,15 @@ class Pass(MaskedLayer):
         return X
 
 
-class GaussianNoise(MaskedLayer):
+class GaussianProd(MaskedLayer):
     '''
         Multiply by Gaussian noise.
         Similar to dropout but with gaussians instead of binomials.
+        The way they have this at Keras is not the way we need for
+        Variational AutoEncoders.
     '''
     def __init__(self, avg=0., std=1.):
-        super(GaussianNoise, self).__init__()
+        super(GaussianProd, self).__init__()
         self.std = std
         self.avg = avg
         self.srng = RandomStreams(seed=np.random.randint(10e6))
