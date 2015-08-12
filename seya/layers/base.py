@@ -4,9 +4,41 @@ from itertools import combinations
 from keras.layers.core import MaskedLayer, Layer, Dense
 
 
+class GaussianNoise(MaskedLayer):
+    '''
+        Multiply by Gaussian noise.
+        Similar to dropout but with gaussians instead of binomials.
+    '''
+    def __init__(self, avg=0., std=1., test_scale=0):
+        super(GaussianNoise, self).__init__()
+        self.std = std
+        self.avg = avg
+        self.test_scale test_scale
+        self.srng = RandomStreams(seed=np.random.randint(10e6))
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        if train:
+            X *= self.srng.normal(size=X.shape,
+                                  avg=self.avg,
+                                  std=self.std,
+                                  dtype=theano.config.floatX)
+        else:
+            X *= self.test_scale # default is zero = cut the node off
+        return X
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "avg": self.avg,
+                "std": self.std}
+
+
 class Replicator(MaskedLayer):
+    '''Replicates an input matrix across a new second dimension.
+        Originally useful for broadcasting a fixed input into a scan loop.
+        Think conditional RNNs without the need to rewrite the RNN class.
+    '''
     def __init__(self, leng):
-        "Replicates an input matrix across a new second dimension"
         super(Replicator, self).__init__()
         self.ones = T.ones((leng,))
         self.input = T.matrix()
@@ -52,6 +84,9 @@ class TimePicker(MaskedLayer):
 
 class OrthogonalDense(Dense):
     '''Dense layer with weights fixed to be Orthogonal
+
+    ... WORK IN PROGRESS ...
+
     '''
     def __init__(self, dim):
         super(OrthogonalDense, self).__init__(input_dim=dim,
