@@ -73,14 +73,14 @@ class Tensor(Recurrent):
         self.b.name = '%s_b' % name
 
     def _step(self, Wx_t, s_tm1, u_tm1, h2o):
-        uWx = T.dot(u_tm1, Wx_t)
+        uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch x output_dim
         s_t = uWx + T.dot(s_tm1, self.C)
         u_t = model_apply(h2o, s_t)
         return s_t, u_t
 
     def get_output_mask(self, trian=False):
         X = self.get_input()
-        Wx = T.tensordot(X, self.W, axes=(2, 0))
+        Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
         s_init = T.zeros((X.shape[0], self.output_dim))
         u_init = T.zeros((X.shape[0], self.causes_dim))
         outputs, uptdates = scan(
