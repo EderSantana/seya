@@ -2,10 +2,10 @@ import theano.tensor as T
 
 from theano import scan
 
-from keras.layers import Recurrent
+from keras.layers.recurrent import Recurrent
 from keras import initializations, regularizers, constraints
 
-from ..utils import model_apply
+from ..utils import apply_model
 
 
 class Tensor(Recurrent):
@@ -27,7 +27,8 @@ class Tensor(Recurrent):
                  b_constraint=None,
                  activity_regularizer=None,
                  truncate_gradient=-1,
-                 weights=None, name=None):
+                 weights=None, name=None,
+                 return_mode='both'):
         super(Tensor, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -36,6 +37,7 @@ class Tensor(Recurrent):
         self.init = initializations.get(init)
         self.truncate_gradient = truncate_gradient
         self.input = T.tensor3()
+        self.return_mode = return_mode
 
         self.W = self.init((input_dim, causes_dim, output_dim))
         self.C = self.init((output_dim, output_dim))
@@ -72,13 +74,13 @@ class Tensor(Recurrent):
         self.W.name = '%s_W' % name
         self.b.name = '%s_b' % name
 
-    def _step(self, Wx_t, s_tm1, u_tm1, h2o):
+    def _step(self, Wx_t, s_tm1, u_tm1):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch x output_dim
         s_t = uWx + T.dot(s_tm1, self.C)
-        u_t = model_apply(h2o, s_t)
+        u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
-    def get_output_mask(self, trian=False):
+    def get_output(self, trian=False):
         X = self.get_input()
         Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
         s_init = T.zeros((X.shape[0], self.output_dim))
@@ -87,5 +89,15 @@ class Tensor(Recurrent):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.hid2output],
             truncate_gradient=self.truncate_gradient)
+
+        if self.return_mode == 'both':
+            return T.concatenate([outputs[0], outputs[1]],
+                                 axis=-1).dimshuffle(1, 0, 2)
+        elif self.return_mode == 'states':
+            return outputs[0].dimshuffle(1, 0, 2)
+        elif self.return_mode == 'causes':
+            return outputs[1].dimshuffle(1, 0, 2)
+        else:
+            raise ValueError("return_model {0} not valid. Choose "
+                             "'both', 'states' or 'causes'".format(self.return_mode))

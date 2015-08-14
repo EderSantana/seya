@@ -2,7 +2,7 @@ import numpy as np
 import theano.tensor as tensor
 
 
-def model_apply(model, X):
+def apply_model(model, X):
     tmp = model.input
     model.input = X
     Y = model.get_output()
