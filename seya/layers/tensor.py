@@ -39,6 +39,7 @@ class Tensor(Recurrent):
         self.truncate_gradient = truncate_gradient
         self.input = T.tensor3()
         self.return_mode = return_mode
+        self.return_sequences = return_sequences
 
         self.W = self.init((input_dim, causes_dim, output_dim))
         self.C = self.init((output_dim, output_dim))
@@ -103,7 +104,7 @@ class Tensor(Recurrent):
             raise ValueError("return_model {0} not valid. Choose "
                              "'both', 'states' or 'causes'".format(self.return_mode))
 
-        if self.return_sequence:
+        if self.return_sequences:
             return out.dimshuffle(1, 0, 2)
         else:
             return out[-1]
