@@ -3,10 +3,10 @@ import theano.tensor as tensor
 
 
 def apply_model(model, X):
-    tmp = model.input
-    model.input = X
+    tmp = model.layers[0].input
+    model.layers[0].input = X
     Y = model.get_output()
-    model.input = tmp
+    model.layers[0].input = tmp
     return Y
 
 
