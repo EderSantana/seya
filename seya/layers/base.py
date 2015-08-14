@@ -4,6 +4,7 @@ import theano.tensor as T
 
 from itertools import combinations
 from keras.layers.core import MaskedLayer, Layer, Dense
+from keras.utils.theano_utils import ndim_tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 floatX = theano.config.floatX
@@ -13,8 +14,9 @@ class Pass(MaskedLayer):
     ''' Do literally nothing
         Can't be the first layer
     '''
-    def __init__(self,):
+    def __init__(self, ndim=2):
         super(Pass, self).__init__()
+        self.input = ndim_tensor(ndim)
 
     def get_output(self, train=False):
         X = self.get_input(train)
@@ -33,7 +35,7 @@ class GaussianProd(MaskedLayer):
         self.std = std
         self.avg = avg
         self.srng = RandomStreams(seed=np.random.randint(10e6))
-        
+
     def get_output(self, train=False):
         X = self.get_input(train)
         X *= self.srng.normal(size=X.shape,
