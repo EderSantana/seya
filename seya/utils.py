@@ -4,9 +4,9 @@ import theano.tensor as tensor
 
 def apply_model(model, X):
     tmp = model.input
-    setattr(model, input, X)
+    setattr(model, X, 'input')
     Y = model.get_output()
-    setattr(model, input, tmp)
+    setattr(model, tmp, 'input')
     return Y
 
 
