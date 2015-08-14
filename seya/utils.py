@@ -2,6 +2,14 @@ import numpy as np
 import theano.tensor as tensor
 
 
+def model_apply(model, X):
+    tmp = model.input
+    model.input = X
+    Y = model.get_output()
+    model.input = tmp
+    return Y
+
+
 def s2s_to_s2t(sequences, targets):
     '''
     Transforms as sequence to sequence problem to a sequence to target.
@@ -17,13 +25,6 @@ def s2s_to_s2t(sequences, targets):
         if not len(seq) == len(tar):
             raise ValueError("Sequences and Targets must have the same length.")
         for i in range(len(seq)):
-            #if i == 0:
-            #    X.append(seq[0])
-            #    Xrev.append(seq[::-1])
-            #elif i == len(seq)-1:
-            #    X.append(seq)
-            #    Xrev.append(seq[-1])
-            #else:
             X.append(seq[:i+1])
             if i == 0:
                 Xrev.append(seq[::-1])
