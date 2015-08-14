@@ -12,7 +12,7 @@ floatX = theano.config.floatX
 
 class Pass(MaskedLayer):
     ''' Do literally nothing
-        Can't be the first layer
+        It can the first layer
     '''
     def __init__(self, ndim=2):
         super(Pass, self).__init__()
