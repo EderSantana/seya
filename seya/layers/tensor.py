@@ -28,7 +28,8 @@ class Tensor(Recurrent):
                  activity_regularizer=None,
                  truncate_gradient=-1,
                  weights=None, name=None,
-                 return_mode='both'):
+                 return_mode='both',
+                 return_sequences=True):
         super(Tensor, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -72,7 +73,7 @@ class Tensor(Recurrent):
 
     def set_name(self, name):
         self.W.name = '%s_W' % name
-        self.b.name = '%s_b' % name
+        self.C.name = '%s_C' % name
 
     def _step(self, Wx_t, s_tm1, u_tm1):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch x output_dim
