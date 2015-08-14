@@ -74,17 +74,10 @@ class Tensor(Recurrent):
         self.W.name = '%s_W' % name
         self.b.name = '%s_b' % name
 
-    def apply(self, X):
-        tmp = self.hid2output.input
-        self.hid2output.input = X
-        Y = self.hid2output.get_output()
-        self.hid2output.input = tmp
-        return Y
-
     def _step(self, Wx_t, s_tm1, u_tm1):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch x output_dim
         s_t = uWx + T.dot(s_tm1, self.C)
-        u_t = self.apply(s_t)
+        u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, trian=False):
