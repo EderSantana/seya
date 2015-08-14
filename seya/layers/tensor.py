@@ -81,7 +81,7 @@ class Tensor(Recurrent):
         u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
-    def get_output(self, trian=False):
+    def get_output(self, train=False):
         X = self.get_input()
         Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
         s_init = T.zeros((X.shape[0], self.output_dim))
@@ -94,11 +94,16 @@ class Tensor(Recurrent):
 
         if self.return_mode == 'both':
             return T.concatenate([outputs[0], outputs[1]],
-                                 axis=-1).dimshuffle(1, 0, 2)
+                                 axis=-1)
         elif self.return_mode == 'states':
-            return outputs[0].dimshuffle(1, 0, 2)
+            out = outputs[0]
         elif self.return_mode == 'causes':
-            return outputs[1].dimshuffle(1, 0, 2)
+            out = outputs[1]
         else:
             raise ValueError("return_model {0} not valid. Choose "
                              "'both', 'states' or 'causes'".format(self.return_mode))
+
+        if self.return_sequence:
+            return out.dimshuffle(1, 0, 2)
+        else:
+            return out[-1]
