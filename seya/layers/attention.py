@@ -44,13 +44,13 @@ class SpatialTransformer(Layer):
     def get_output(self, train=False):
         X = self.get_input()
         # locnet.get_output(X) should be shape (batchsize, 6)
-        theta = self.locnet.get_output(train)  # .reshape((X.shape[0], 2, 3))
-        thetas = T.nnet.sigmoid(theta[:, :4])
-        thetat = T.nnet.sigmoid(theta[:, 4:]) * 0  # X.shape[2]
-        theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
-                               thetat.reshape((X.shape[0], 2, 1))],
-                              axis=2)
-        theta = T.cast(theta, floatX)
+        theta = self.locnet.get_output(train).reshape((X.shape[0], 2, 3))
+        # thetas = T.nnet.sigmoid(theta[:, :4])
+        # thetat = T.nnet.sigmoid(theta[:, 4:]) * 0  # X.shape[2]
+        # theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
+        #                        thetat.reshape((X.shape[0], 2, 1))],
+        #                       axis=2)
+        # theta = T.cast(theta, floatX)
 
         output = self._transform(theta, X, self.downsample_factor)
         if self.return_theta:
