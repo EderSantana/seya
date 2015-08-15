@@ -4,6 +4,7 @@ from theano import scan
 
 from keras.layers.recurrent import Recurrent
 from keras import activations, initializations, regularizers, constraints
+from keras.utils.theano_utils import shared_zeros
 
 from ..utils import apply_model
 

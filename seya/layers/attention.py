@@ -46,7 +46,7 @@ class SpatialTransformer(Layer):
         # locnet.get_output(X) should be shape (batchsize, 6)
         theta = self.locnet.get_output(train)  # .reshape((X.shape[0], 2, 3))
         thetas = T.nnet.sigmoid(theta[:, :4])
-        thetat = T.nnet.sigmoid(theta[:, 4:]) * 0 # X.shape[2]
+        thetat = T.nnet.sigmoid(theta[:, 4:]) * 0  # X.shape[2]
         theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
                                thetat.reshape((X.shape[0], 2, 1))],
                               axis=2)
@@ -257,11 +257,11 @@ class ST2(Layer):
                                axes=(2, 0))
         output = []
         for i in range(chan):
-            out = X[:, i, :, :, None] * T.maximum(0,
-                                        1 - abs(new_grid[:, None, None, 0, :] -
-                                        grid[None, 0, :, :, None])) * T.maximum(0,
-                                        1 - abs(new_grid[:, None, None, 1, :]
-                                        - grid[None, 1, :, :, None]))
+            out = X[:, i, :, :, None] * T.maximum(
+                0, 1 - abs(new_grid[:, None, None, 0, :] -
+                           grid[None, 0, :, :, None])) * T.maximum(
+                               0, 1 - abs(new_grid[:, None, None, 1, :]
+                                          - grid[None, 1, :, :, None]))
             out = out.sum(axis=(1, 2)).reshape((b, row, col))
             output.append(out.reshape((b, new_row,
                                        new_col)).dimshuffle(0, 'x', 1, 2))
