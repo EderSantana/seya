@@ -201,7 +201,7 @@ class Elman(Recurrent):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.A, self.C]
+            non_sequences=[self.A, self.C],
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
