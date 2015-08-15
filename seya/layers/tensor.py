@@ -138,7 +138,7 @@ class Elman(Recurrent):
                  weights=None, name=None,
                  return_mode='both',
                  return_sequences=True):
-        super(Tensor, self).__init__()
+        super(Elman, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.causes_dim = causes_dim
