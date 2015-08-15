@@ -80,9 +80,9 @@ class Tensor(Recurrent):
         self.W.name = '%s_W' % name
         self.C.name = '%s_C' % name
 
-    def _step(self, Wx_t, s_tm1, u_tm1):
+    def _step(self, Wx_t, s_tm1, u_tm1, C, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
-        s_t = self.activation(uWx + T.dot(s_tm1, self.C) + self.b)
+        s_t = self.activation(uWx + T.dot(s_tm1, C) + b)
         u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
@@ -95,6 +95,7 @@ class Tensor(Recurrent):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
+            non_sequences=[self.C, self.b] + self.hid2output.params,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
@@ -202,7 +203,7 @@ class Elman(Recurrent):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.A, self.C],
+            non_sequences=[self.A, self.C] + self.hid2output.params,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
