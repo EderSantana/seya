@@ -128,7 +128,7 @@ class Tensor2(Tensor):
     '''
     def __init__(self, *args, **kwargs):
         super(Tensor2, self).__init__(*args, **kwargs)
-        del self.parmas[1]
+        del self.params[1]
 
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
