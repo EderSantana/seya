@@ -99,7 +99,8 @@ class SpatialTransformer(Layer):
         idx_c = base_y0 + x1
         idx_d = base_y1 + x1
 
-        # use indices to lookup pixels in the flat image and restore channels dim
+        # use indices to lookup pixels in the flat
+        #  image and restore channels dim
         im_flat = im.reshape((-1, channels))
         Ia = im_flat[idx_a]
         Ib = im_flat[idx_b]
@@ -242,7 +243,8 @@ class ST2(Layer):
         X = theano.shared(x.astype(floatX))
         Y = theano.shared(y.astype(floatX))
         ones = T.ones_like(X)
-        grid = T.concatenate([X[None, :, :], Y[None, :, :], ones[None, :, :]], axis=0)
+        grid = T.concatenate([X[None, :, :], Y[None, :, :], ones[None, :, :]],
+                             axis=0)
         return grid
 
     def _transform(self, X, theta, ds):
@@ -251,7 +253,8 @@ class ST2(Layer):
         new_row = row / ds[0]
         new_col = col / ds[1]
         grid = self._meshgrid(new_row, new_col)
-        new_grid = T.tensordot(theta, grid.reshape((3, new_row*new_col)), axes=(2, 0))
+        new_grid = T.tensordot(theta, grid.reshape((3, new_row*new_col)),
+                               axes=(2, 0))
         output = []
         for i in range(chan):
             out = X[:, i, :, :, None] * T.maximum(0,
