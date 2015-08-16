@@ -1,6 +1,8 @@
 import theano
 import numpy as np
+import h5py
 
+from collections import defaultdict
 from skimage.transform import rotate
 floatX = theano.config.floatX
 
@@ -64,3 +66,54 @@ class RotateData(DataTransformer):
             Rval[i] = self._allrotations(I)
         Rval = Rval.astype(floatX)
         return Rval
+
+
+class HDF5Tensor():
+    def __init__(self, datapath, dataset, start, end,
+                 time_start, time_end, normalizer=None):
+        self.refs = defaultdict(int)
+        if datapath not in list(self.refs.keys()):
+            f = h5py.File(datapath)
+            self.refs[datapath] = f
+        else:
+            f = self.refs[datapath]
+        self.start = start
+        self.end = end
+        self.data = f[dataset]
+        self.normalizer = normalizer
+        self.time_start = time_start
+        self.time_end = time_end
+
+    def __len__(self):
+        return self.end - self.start
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            if key.stop + self.start <= self.end:
+                idx = slice(key.start+self.start, key.stop + self.start)
+            else:
+                raise IndexError
+        elif isinstance(key, int):
+            if key + self.start < self.end:
+                idx = key+self.start
+            else:
+                raise IndexError
+        elif isinstance(key, np.ndarray):
+            if np.max(key) + self.start < self.end:
+                idx = (self.start + key).tolist()
+            else:
+                raise IndexError
+        elif isinstance(key, list):
+            if max(key) + self.start < self.end:
+                idx = [x + self.start for x in key]
+            else:
+                raise IndexError
+        if self.normalizer is not None:
+            return self.normalizer(self.data[idx,
+                                             self.time_start:self.time_end])
+        else:
+            return self.data[idx, self.time_start:self.time_end]
+
+    @property
+    def shape(self):
+        return tuple([self.end - self.start, self.data.shape[1]])
