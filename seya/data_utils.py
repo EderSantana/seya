@@ -1,5 +1,7 @@
 import theano
 import numpy as np
+
+from skimage.transform import rotate
 floatX = theano.config.floatX
 
 
@@ -42,6 +44,16 @@ class RotateData(DataTransformer):
         self.img_shape = img_shape
         self.final_angle = final_angle
 
+    def _allrotations(self, image):
+        angles = np.linspace(0, self.final_angle, self.n_steps)
+        R = np.zeros((self.n_steps, np.prod(self.img_shape)))
+        for i in xrange(self.n_steps):
+            img = rotate(image, angles[i])
+            if len(self.img_shape) == 3:
+                img = img.transpose(2, 0, 1)
+            R[i] = img.flatten()
+        return R
+
     def transform(self, X):
         Rval = np.zeros((X.shape[0],) + self.shape[1:])
         for i, sample in enumerate(X):
@@ -49,8 +61,6 @@ class RotateData(DataTransformer):
                 I = sample.reshape(self.img_shape).transpose(1, 2, 0)
             else:
                 I = sample.reshape(self.img_shape)
-            Rval[:, i, :] = self._allrotations(I, self.n_steps,
-                                               self.img_shape,
-                                               self.final_angle)
+            Rval[i] = self._allrotations(self, I)
         Rval = Rval.astype(floatX)
         return Rval
