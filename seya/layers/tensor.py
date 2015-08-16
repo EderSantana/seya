@@ -90,7 +90,7 @@ class Tensor(Recurrent):
         X = self.get_input()
         Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
         s_init = T.zeros((X.shape[0], self.output_dim))
-        u_init = T.zeros((X.shape[0], self.causes_dim))
+        u_init = T.ones((X.shape[0], self.causes_dim)) / self.causes_dim
         outputs, uptdates = scan(
             self._step,
             sequences=[Wx],
@@ -133,15 +133,14 @@ class Tensor2(Tensor):
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
         s_t = self.activation(uWx + b)
-        inp = T.concatenate([s_t, u_tm1], axis=-1)
-        u_t = apply_model(self.hid2output, inp)
+        u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, train=False):
         X = self.get_input()
         Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
         s_init = T.zeros((X.shape[0], self.output_dim))
-        u_init = T.zeros((X.shape[0], self.causes_dim))
+        u_init = T.ones((X.shape[0], self.causes_dim)) / self.causes_dim
         outputs, uptdates = scan(
             self._step,
             sequences=[Wx],
