@@ -9,7 +9,7 @@ class TransformedDataset():
     def __init__(self, data, transformer):
         self.data = data
         self.transformer = transformer
-        samp_out = transformer(data[:1])
+        samp_out = transformer.transform(data[:1])
         self.shape = (data.shape[0],) + samp_out.shape[1:]
 
     def __len__(self):
