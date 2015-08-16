@@ -166,6 +166,59 @@ class Tensor2(Tensor):
             return out[-1]
 
 
+class ProdTensor(Tensor):
+    '''Tensor class
+    Motivated by the Fast Approximate DPCN model
+
+    Parameters:
+    ===========
+    *_dim defines the dimensions of the tensorial transition
+    hid2output: is a sequential model to transform the hidden states
+        to the output causes.
+    '''
+    def __init__(self, *args, **kwargs):
+        super(ProdTensor, self).__init__(*args, **kwargs)
+        self.W = self.init((self.input_dim, self.output_dim))
+        self.C = self.init((self.causes_dim, self.output_dim))
+        self.params[0] = self.W
+        self.params[1] = self.C
+
+    def _step(self, Wx_t, s_tm1, u_tm1, C, b, *args):
+        Cu = T.dot(u_tm1, C)
+        s_t = self.activation(Wx_t*Cu + b)
+        u_t = apply_model(self.hid2output, s_t)
+        return s_t, u_t
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        Wx = T.dot(X, self.W).dimshuffle(1, 0, 2)
+        s_init = T.zeros((X.shape[0], self.output_dim))
+        u_init = T.ones((X.shape[0], self.causes_dim)) / self.causes_dim
+        outputs, uptdates = scan(
+            self._step,
+            sequences=[Wx],
+            outputs_info=[s_init, u_init],
+            non_sequences=[self.C, self.b] + self.hid2output.params,
+            truncate_gradient=self.truncate_gradient)
+
+        if self.return_mode == 'both':
+            return T.concatenate([outputs[0], outputs[1]],
+                                 axis=-1)
+        elif self.return_mode == 'states':
+            out = outputs[0]
+        elif self.return_mode == 'causes':
+            out = outputs[1]
+        else:
+            raise ValueError("return_model {0} not valid. Choose "
+                             "'both', 'states' or 'causes'".format(
+                                 self.return_mode))
+
+        if self.return_sequences:
+            return out.dimshuffle(1, 0, 2)
+        else:
+            return out[-1]
+
+
 class Elman(Recurrent):
     '''Elman class
     Motivated by the Fast Approximate DPCN model
