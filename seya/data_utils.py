@@ -116,4 +116,5 @@ class HDF5Tensor():
 
     @property
     def shape(self):
-        return tuple([self.end - self.start, self.data.shape[1]])
+        return tuple((self.end - self.start, self.time_start -
+                      self.time_end) + self.data.shape[2:])
