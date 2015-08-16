@@ -55,7 +55,7 @@ class RotateData(DataTransformer):
         return R
 
     def transform(self, X):
-        Rval = np.zeros((X.shape[0],), self.n_steps, X.shape[1])
+        Rval = np.zeros((X.shape[0], self.n_steps, X.shape[1]))
         for i, sample in enumerate(X):
             if len(self.img_shape) == 3:
                 I = sample.reshape(self.img_shape).transpose(1, 2, 0)
