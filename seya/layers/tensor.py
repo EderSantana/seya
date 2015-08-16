@@ -133,7 +133,8 @@ class Tensor2(Tensor):
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
         s_t = self.activation(uWx + b)
-        u_t = apply_model(self.hid2output, s_t)
+        inp = T.concatenate([s_t, u_tm1], axis=-1)
+        u_t = apply_model(self.hid2output, inp)
         return s_t, u_t
 
     def get_output(self, train=False):
