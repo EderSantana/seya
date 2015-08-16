@@ -9,7 +9,7 @@ class TransformedDataset():
     def __init__(self, data, transformer):
         self.data = data
         self.transformer = transformer
-        samp_out = transformer.transform(data[:1])
+        samp_out = transformer.transform(data[:2])
         self.shape = (data.shape[0],) + samp_out.shape[1:]
 
     def __len__(self):
@@ -55,7 +55,7 @@ class RotateData(DataTransformer):
         return R
 
     def transform(self, X):
-        Rval = np.zeros((X.shape[0],) + self.shape[1:])
+        Rval = np.zeros((X.shape[0],), self.n_steps, X.shape[1])
         for i, sample in enumerate(X):
             if len(self.img_shape) == 3:
                 I = sample.reshape(self.img_shape).transpose(1, 2, 0)
