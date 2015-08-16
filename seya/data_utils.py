@@ -61,6 +61,6 @@ class RotateData(DataTransformer):
                 I = sample.reshape(self.img_shape).transpose(1, 2, 0)
             else:
                 I = sample.reshape(self.img_shape)
-            Rval[i] = self._allrotations(self, I)
+            Rval[i] = self._allrotations(I)
         Rval = Rval.astype(floatX)
         return Rval
