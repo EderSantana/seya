@@ -40,7 +40,7 @@ class FDPCN(Recurrent):
         self.CbS = shared_zeros((self.states_dim))
         self.C2S = self.init((self.causes_dim, self.states_dim))
         self.params = [self.I2S, self.S2S, self.Sb,
-                       self.C2S, self.C2C, self.Cb, self.C2S, self.CbS]
+                       self.C2S, self.C2C, self.Cb, self.S2C, self.CbS]
 
         if weights is not None:
             self.set_weights(weights)
