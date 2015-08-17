@@ -35,7 +35,7 @@ class FDPCN(Recurrent):
         self.Sb = shared_zeros((self.states_dim))
 
         self.S2C = self.init((self.states_dim, self.causes_dim))
-        self.C2C = self.inner_init((self.states_dim, self.causes_dim))
+        self.C2C = self.inner_init((self.causes_dim, self.causes_dim))
         self.Cb = shared_zeros((self.causes_dim))
         self.CbS = shared_zeros((self.states_dim))
         self.C2S = self.init((self.causes_dim, self.states_dim))
@@ -51,7 +51,6 @@ class FDPCN(Recurrent):
         g = self.gate_activation(T.dot(c_tm1, C2S) + CbS)
         s_t *= g
         c_t = self.activation(T.dot(s_t, S2C) + T.dot(c_tm1, C2C) + Cb)
-
         return s_t, c_t
 
     def get_output(self, train=False):
