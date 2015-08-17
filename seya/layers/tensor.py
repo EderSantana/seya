@@ -9,6 +9,84 @@ from keras.utils.theano_utils import shared_zeros
 from ..utils import apply_model
 
 
+class FDPCN(Recurrent):
+    '''Fast DPCN layer
+    '''
+    def __init__(self, input_dim, states_dim, causes_dim,
+                 init='glorot_uniform', inner_init='orthogonal',
+                 activation='sigmoid', gate_activation='relu',
+                 weights=None, return_mode='states',
+                 truncate_gradient=-1, return_sequences=False):
+        super(FDPCN, self).__init__()
+        self.init = initializations.get(init)
+        self.inner_init = initializations.get(inner_init)
+        self.input_dim = input_dim
+        self.states_dim = states_dim
+        self.causes_dim = causes_dim
+        self.truncate_gradient = truncate_gradient
+        self.activation = activations.get(activation)
+        self.return_sequences = return_sequences
+        self.return_mode = return_mode
+        self.input = T.tensor3()
+
+        self.I2S = self.init((self.input_dim, self.states_dim))
+        self.S2S = self.inner_init((self.states_dim, self.states_dim))
+        self.Sb = shared_zeros((self.states_dim))
+
+        self.S2C = self.init((self.states_dim, self.causes_dim))
+        self.C2C = self.inner_init((self.states_dim, self.causes_dim))
+        self.Cb = shared_zeros((self.causes_dim))
+        self.CbS = shared_zeros((self.states_dim))
+        self.C2S = self.init((self.causes_dim, self.states_dim))
+        self.params = [self.I2S, self.S2S, self.Sb,
+                       self.C2S, self.C2C, self.Cb, self.C2S, self.Cbs]
+
+        if weights is not None:
+            self.set_weights(weights)
+
+    def _step(self, x_t, mask_tm1, s_tm1, c_tm1,
+              S2S, S2C, C2C, Cb, C2S, CbS):
+        s_t = self.activation(x_t + mask_tm1 * T.dot(s_tm1, S2S))
+        g = self.gate_activation(T.dot(c_tm1, C2S) + CbS)
+        s_t *= g
+        c_t = self.activation(T.dot(s_t, S2C) + T.dot(c_tm1, C2C) + Cb)
+
+        return s_t, c_t
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
+        X = X.dimshuffle(1, 0, 2)
+        x = T.dot(X, self.I2S) + self.Sb
+
+        s_init = T.zeros((X.shape[0], self.states_dim))
+        u_init = T.ones((X.shape[0], self.causes_dim)) * .001
+
+        outputs, uptdates = scan(
+            self._step,
+            sequences=[x, dict(input=padded_mask, taps=[-1])],
+            outputs_info=[s_init, u_init],
+            non_sequences=[self.S2S, self.S2C, self.C2C, self.Cb, self.C2S,
+                           self.CbS],
+            truncate_gradient=self.truncate_gradient)
+
+        if self.return_mode == 'both':
+            return T.concatenate([outputs[0], outputs[1]],
+                                 axis=-1)
+        elif self.return_mode == 'states':
+            out = outputs[0]
+        elif self.return_mode == 'causes':
+            out = outputs[1]
+        else:
+            raise ValueError("return_model {0} not valid. Choose "
+                             "'both', 'states' or 'causes'".format(
+                                 self.return_mode))
+        if self.return_sequences:
+            return out.dimshuffle(1, 0, 2)
+        else:
+            return out[-1]
+
+
 class Tensor(Recurrent):
     '''Tensor class
     Motivated by the Fast Approximate DPCN model
