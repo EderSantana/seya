@@ -180,12 +180,14 @@ class ProdTensor(Tensor):
         super(ProdTensor, self).__init__(*args, **kwargs)
         self.W = self.init((self.input_dim, self.output_dim))
         self.C = self.init((self.causes_dim, self.output_dim))
+        self.b0 = shared_zeros((self.output_dim))
         self.params[0] = self.W
         self.params[1] = self.C
+        self.params = self.params + [self.b0, ]
 
-    def _step(self, Wx_t, s_tm1, u_tm1, C, b, *args):
-        Cu = T.dot(u_tm1, C)
-        s_t = self.activation(Wx_t*Cu + b)
+    def _step(self, Wx_t, s_tm1, u_tm1, C, b0, b1, *args):
+        Cu = self.activation(T.dot(u_tm1, C) + b0)
+        s_t = self.activation(Wx_t*Cu + b1)
         u_t = apply_model(self.hid2output, s_t)
         return s_t, u_t
 
@@ -198,7 +200,7 @@ class ProdTensor(Tensor):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.C, self.b] + self.hid2output.params,
+            non_sequences=[self.C, self.b0, self.b] + self.hid2output.params,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
