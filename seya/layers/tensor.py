@@ -222,7 +222,7 @@ class ProdTensor(Tensor):
 
 
 class ProdExp(Tensor):
-    '''Tensor class
+    '''ProdExp class
     Motivated by the Fast Approximate DPCN model
 
     Parameters:
@@ -311,8 +311,7 @@ class GAE(Recurrent):
         self.bo = shared_zeros((self.output_dim))
         self.bc = shared_zeros((self.causes_dim))
 
-        self.params = [self.V, self.U, self.W,
-                       self.bo, self.bc]
+        self.params = [self.V, self.U, self.W]
 
         self.regularizers = []
         self.W_regularizer = regularizers.get(W_regularizer)
@@ -352,8 +351,8 @@ class GAE(Recurrent):
         return x_t, s_t, m
 
     def get_output(self, train=False):
-        X = self.get_input()
-        Vx = T.dot(X, self.V).dimshuffle(1, 0, 2)
+        X = self.get_input().dimshuffle(1, 0, 2)
+        Vx = T.dot(X, self.V)
         x_init = T.zeros((X.shape[0], self.input_dim))
         s_init = T.zeros((X.shape[0], self.output_dim))
         u_init = T.zeros((X.shape[0], self.causes_dim))
