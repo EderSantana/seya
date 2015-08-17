@@ -195,7 +195,7 @@ class ProdTensor(Tensor):
         X = self.get_input()
         Wx = T.dot(X, self.W).dimshuffle(1, 0, 2)
         s_init = T.zeros((X.shape[0], self.output_dim))
-        u_init = T.maximum(0, self.init((X.shape[0], self.causes)))
+        u_init = T.maximum(0, self.init((X.shape[0], self.causes_dim)))
         outputs, uptdates = scan(
             self._step,
             sequences=[Wx],
