@@ -221,6 +221,56 @@ class ProdTensor(Tensor):
             return out[-1]
 
 
+class ProdExp(Tensor):
+    '''Tensor class
+    Motivated by the Fast Approximate DPCN model
+
+    Parameters:
+    ===========
+    *_dim defines the dimensions of the tensorial transition
+    hid2output: is a sequential model to transform the hidden states
+        to the output causes.
+    '''
+    def __init__(self, *args, **kwargs):
+        super(ProdExp, self).__init__(*args, **kwargs)
+        del self.params[1]
+
+    def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
+        uWx = (u_tm1[:, :, None] * Wx_t).prod(axis=1)  # shape: batch/output_dim
+        s_t = self.activation(uWx + b)
+        u_t = apply_model(self.hid2output, s_t)
+        return s_t, u_t
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        Wx = T.tensordot(X, self.W, axes=(2, 0)).dimshuffle(1, 0, 2, 3)
+        s_init = T.zeros((X.shape[0], self.output_dim))
+        u_init = T.ones((X.shape[0], self.causes_dim)) / self.causes_dim
+        outputs, uptdates = scan(
+            self._step,
+            sequences=[Wx],
+            outputs_info=[s_init, u_init],
+            non_sequences=[self.b] + self.hid2output.params,
+            truncate_gradient=self.truncate_gradient)
+
+        if self.return_mode == 'both':
+            return T.concatenate([outputs[0], outputs[1]],
+                                 axis=-1)
+        elif self.return_mode == 'states':
+            out = outputs[0]
+        elif self.return_mode == 'causes':
+            out = outputs[1]
+        else:
+            raise ValueError("return_model {0} not valid. Choose "
+                             "'both', 'states' or 'causes'".format(
+                                 self.return_mode))
+
+        if self.return_sequences:
+            return out.dimshuffle(1, 0, 2)
+        else:
+            return out[-1]
+
+
 class Elman(Recurrent):
     '''Elman class
     Motivated by the Fast Approximate DPCN model
