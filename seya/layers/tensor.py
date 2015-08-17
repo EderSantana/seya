@@ -60,8 +60,8 @@ class FDPCN(Recurrent):
         X = X.dimshuffle(1, 0, 2)
         x = T.dot(X, self.I2S) + self.Sb
 
-        s_init = T.zeros((X.shape[0], self.states_dim))
-        u_init = T.ones((X.shape[0], self.causes_dim)) * .001
+        s_init = T.zeros((X.shape[1], self.states_dim))
+        u_init = T.ones((X.shape[1], self.causes_dim)) * .001
 
         outputs, uptdates = scan(
             self._step,
@@ -432,9 +432,9 @@ class GAE(Recurrent):
     def get_output(self, train=False):
         X = self.get_input().dimshuffle(1, 0, 2)
         Vx = T.dot(X, self.V)
-        x_init = T.zeros((X.shape[0], self.input_dim))
-        s_init = T.zeros((X.shape[0], self.output_dim))
-        u_init = T.zeros((X.shape[0], self.causes_dim))
+        x_init = T.zeros((X.shape[1], self.input_dim))
+        s_init = T.zeros((X.shape[1], self.output_dim))
+        u_init = T.zeros((X.shape[1], self.causes_dim))
         outputs, uptdates = scan(
             self._step,
             sequences=[X, Vx],
