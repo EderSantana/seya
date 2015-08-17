@@ -25,6 +25,7 @@ class FDPCN(Recurrent):
         self.causes_dim = causes_dim
         self.truncate_gradient = truncate_gradient
         self.activation = activations.get(activation)
+        self.gate_activation = activations.get(gate_activation)
         self.return_sequences = return_sequences
         self.return_mode = return_mode
         self.input = T.tensor3()
