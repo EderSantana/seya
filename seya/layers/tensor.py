@@ -14,7 +14,7 @@ class FDPCN(Recurrent):
     '''
     def __init__(self, input_dim, states_dim, causes_dim,
                  init='glorot_uniform', inner_init='orthogonal',
-                 activation='sigmoid', gate_activation='relu',
+                 activation='sigmoid', gate_activation='sigmoid',
                  weights=None, return_mode='states',
                  truncate_gradient=-1, return_sequences=False):
         super(FDPCN, self).__init__()
