@@ -271,8 +271,8 @@ class ProdExp(Tensor):
             return out[-1]
 
 
-class Elman(Recurrent):
-    '''Elman class
+class GAE(Recurrent):
+    '''GAE class
     Motivated by the Fast Approximate DPCN model
 
     Parameters:
@@ -294,24 +294,25 @@ class Elman(Recurrent):
                  weights=None, name=None,
                  return_mode='both',
                  return_sequences=True):
-        super(Elman, self).__init__()
+        super(GAE, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.causes_dim = causes_dim
         self.activation = activations.get(activation)
-        self.hid2output = hid2output
         self.init = initializations.get(init)
         self.truncate_gradient = truncate_gradient
         self.input = T.tensor3()
         self.return_mode = return_mode
         self.return_sequences = return_sequences
 
-        self.W = self.init((input_dim, output_dim))
-        self.A = self.init((causes_dim, output_dim))
-        self.C = self.init((output_dim, output_dim))
-        self.b = shared_zeros((self.output_dim))
+        self.V = self.init((input_dim, output_dim))
+        self.U = self.init((input_dim, output_dim))
+        self.W = self.init((output_dim, causes_dim))
+        self.bo = shared_zeros((self.output_dim))
+        self.bc = shared_zeros((self.causes_dim))
 
-        self.params = [self.W, self.A, self.C, self.b] + hid2output.params
+        self.params = [self.V, self.U, self.W,
+                       self.bo, self.bc]
 
         self.regularizers = []
         self.W_regularizer = regularizers.get(W_regularizer)
@@ -343,31 +344,33 @@ class Elman(Recurrent):
         self.W.name = '%s_W' % name
         self.C.name = '%s_C' % name
 
-    def _step(self, Wx_t, s_tm1, u_tm1, A, C):
-        uA = T.dot(u_tm1, A)
-        s_t = self.activation(uA + Wx_t + T.dot(s_tm1, C) + self.b)
-        u_t = apply_model(self.hid2output, s_t)
-        return s_t, u_t
+    def _step(self, x_t, Vx_t, x_tm1, s_tm1, m_tm1,
+              V, U, W, bo, bc):
+        m = self.activation(T.dot(
+            T.dot(x_tm1, U) * Vx_t, W))
+        s_t = T.dot(T.dot(x_t, U) * T.dot(m, W.T), V.T)
+        return x_t, s_t, m
 
     def get_output(self, train=False):
         X = self.get_input()
-        Wx = T.dot(X, self.W).dimshuffle(1, 0, 2)
+        Vx = T.dot(X, self.V).dimshuffle(1, 0, 2)
+        x_init = T.zeros((X.shape[0], self.input_dim))
         s_init = T.zeros((X.shape[0], self.output_dim))
         u_init = T.zeros((X.shape[0], self.causes_dim))
         outputs, uptdates = scan(
             self._step,
-            sequences=[Wx],
-            outputs_info=[s_init, u_init],
-            non_sequences=[self.A, self.C] + self.hid2output.params,
+            sequences=[X, Vx],
+            outputs_info=[x_init, s_init, u_init],
+            non_sequences=self.params,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
-            return T.concatenate([outputs[0], outputs[1]],
+            return T.concatenate([outputs[1], outputs[2]],
                                  axis=-1)
         elif self.return_mode == 'states':
-            out = outputs[0]
-        elif self.return_mode == 'causes':
             out = outputs[1]
+        elif self.return_mode == 'causes':
+            out = outputs[2]
         else:
             raise ValueError("return_model {0} not valid. Choose "
                              "'both', 'states' or 'causes'".format(
