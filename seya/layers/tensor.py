@@ -344,7 +344,7 @@ class GAE(Recurrent):
         self.C.name = '%s_C' % name
 
     def _step(self, x_t, Vx_t, x_tm1, s_tm1, m_tm1,
-              V, U, W, bo, bc):
+              V, U, W):
         m = self.activation(T.dot(
             T.dot(x_tm1, U) * Vx_t, W))
         s_t = T.dot(T.dot(x_t, U) * T.dot(m, W.T), V.T)
