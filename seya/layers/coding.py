@@ -190,7 +190,7 @@ class Sparse2L(Layer):
                  V_regularizer=l2(.01),
                  activity_regularizer=None):
 
-        super(SparseCoding, self).__init__()
+        super(Sparse2L, self).__init__()
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim
