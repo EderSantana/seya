@@ -194,6 +194,7 @@ class Sparse2L(Layer):
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.causes_dim = causes_dim
         self.gamma = gamma
         self.n_steps = n_steps
         self.batch_size = batch_size
