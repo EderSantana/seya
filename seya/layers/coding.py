@@ -238,7 +238,7 @@ class Sparse2L(Layer):
                 outputs)
 
     def _get_output(self, inputs, train=False, prior=0.):
-        x_init, u_init = self.get_initial_states()
+        x_init, u_init = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
