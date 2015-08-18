@@ -34,7 +34,6 @@ class SparseCoding(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 batch_size=100,
                  return_reconstruction=False,
                  W_regularizer=l2(.01),
                  activity_regularizer=None):
@@ -45,7 +44,6 @@ class SparseCoding(Layer):
         self.output_dim = output_dim
         self.gamma = gamma
         self.n_steps = n_steps
-        self.batch_size = batch_size
         self.truncate_gradient = truncate_gradient
         self.activation = activations.get(activation)
         self.return_reconstruction = return_reconstruction
@@ -62,8 +60,8 @@ class SparseCoding(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-    def get_initial_states(self):
-        return alloc_zeros_matrix(self.batch_size, self.output_dim)
+    def get_initial_states(self, X):
+        return alloc_zeros_matrix(X.shape[0], self.output_dim)
 
     def _step(self, x_t, accum_1, accum_2, inputs, prior):
         outputs = self.activation(T.dot(x_t, self.W))
@@ -109,7 +107,6 @@ class VarianceCoding(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 batch_size=100,
                  W_regularizer=l2(.01),
                  activity_regularizer=None):
 
@@ -119,7 +116,6 @@ class VarianceCoding(Layer):
         self.output_dim = output_dim
         self.gamma = gamma
         self.n_steps = n_steps
-        self.batch_size = batch_size
         self.truncate_gradient = truncate_gradient
         self.activation = lambda x: .5*(1 + T.exp(-x))
         self.input = T.matrix()
@@ -135,8 +131,8 @@ class VarianceCoding(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-    def get_initial_states(self):
-        return alloc_zeros_matrix(self.batch_size, self.output_dim)
+    def get_initial_states(self, X):
+        return alloc_zeros_matrix(X.shape[0], self.output_dim)
 
     def _step(self, x_t, accum_1, accum_2, inputs, prior):
         outputs = self.activation(T.dot(x_t, self.W))
@@ -149,7 +145,7 @@ class VarianceCoding(Layer):
         return x, new_accum_1, new_accum_2, outputs, l1_norm
 
     def _get_output(self, inputs, train=False, prior=0.):
-        initial_states = self.get_initial_states()
+        initial_states = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
@@ -157,8 +153,6 @@ class VarianceCoding(Layer):
             non_sequences=[inputs, prior],
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
-
-        # return T.sqrt(outputs[-1][-1])
         return outputs[-1][-1]
 
     def get_output(self, train=False):
@@ -184,7 +178,6 @@ class Sparse2L(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 batch_size=100,
                  return_mode='states',
                  W_regularizer=l2(.01),
                  V_regularizer=l2(.01),
@@ -197,7 +190,6 @@ class Sparse2L(Layer):
         self.causes_dim = causes_dim
         self.gamma = gamma
         self.n_steps = n_steps
-        self.batch_size = batch_size
         self.truncate_gradient = truncate_gradient
         self.activation = activations.get(activation)
         self.return_mode = return_mode
@@ -272,7 +264,7 @@ class Sparse2L(Layer):
 
 class ConvSparseCoding(Layer):
     def __init__(self, nb_filter, stack_size, nb_row, nb_col,
-                 input_row, input_col, batch_size,
+                 input_row, input_col,
                  init='glorot_uniform', activation='linear', weights=None,
                  border_mode='valid', subsample=(1, 1),
                  W_regularizer=l2(.01), activity_regularizer=None,
@@ -286,7 +278,6 @@ class ConvSparseCoding(Layer):
         self.border_mode = border_mode
         self.nb_filter = nb_filter
         self.stack_size = stack_size
-        self.batch_size = batch_size
         self.n_steps = n_steps
         self.truncate_gradient = truncate_gradient
         self.gamma = gamma
@@ -316,8 +307,8 @@ class ConvSparseCoding(Layer):
 
         self.return_reconstruction = return_reconstruction
 
-    def get_initial_states(self):
-        return alloc_zeros_matrix(self.batch_size, self.stack_size,
+    def get_initial_states(self, X):
+        return alloc_zeros_matrix(X.shape[0], self.stack_size,
                                   self.code_row, self.code_col)
 
     def _step(self, x_t, accum_1, accum_2, inputs):
@@ -331,7 +322,7 @@ class ConvSparseCoding(Layer):
         return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train):
-        initial_states = self.get_initial_states()
+        initial_states = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
@@ -360,7 +351,6 @@ class TemporalSparseCoding(Recurrent):
         self.prototype = prototype
         self.W = prototype.W  # Sparse coding parameter I - Wx
         self.regularizers = prototype.regularizers
-        self.batch_size = prototype.batch_size
         self.activation = prototype.activation
         self.tnet = transition_net
         try:
@@ -408,7 +398,7 @@ class TemporalSparseCoding(Recurrent):
 
     def get_output(self, train=False):
         inputs = self.get_input(train).dimshuffle(1, 0, 2)
-        initial_states = self.prototype.get_initial_states()
+        initial_states = self.prototype.get_initial_states(inputs[0])
         # initial_states = alloc_zeros_matrix(self.batch_size, self.output_dim)
         outputs, updates = theano.scan(
             self._step,
