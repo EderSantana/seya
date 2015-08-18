@@ -226,7 +226,7 @@ class Sparse2L(Layer):
               inputs, prior, *args):
         outputs = self.activation(T.dot(x_tm1, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
-        causes = (1 + T.exp(-T.dot(u_tm1, self.C))) * .5
+        causes = (1 + T.exp(-T.dot(u_tm1, self.V))) * .5
         l1_norm = (self.gamma * causes * diff_abs(x_tm1)).sum()
         l1_inov = diff_abs(x_tm1 - prior).sum() * self.gamma / 10.
         cost = rec_error + l1_norm + l1_inov
