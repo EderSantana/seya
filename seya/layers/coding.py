@@ -1,4 +1,3 @@
-import numpy as np
 import theano
 import theano.tensor as T
 
@@ -161,6 +160,100 @@ class VarianceCoding(Layer):
 
         # return T.sqrt(outputs[-1][-1])
         return outputs[-1][-1]
+
+    def get_output(self, train=False):
+        inputs = self.get_input(train)
+        return self._get_output(inputs, train)
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "input_dim": self.input_dim,
+                "output_dim": self.output_dim,
+                "init": self.init.__name__,
+                "activation": self.activation.__name__,
+                "truncate_gradient": self.truncate_gradient,
+                "return_reconstruction": self.return_reconstruction}
+
+
+class Sparse2L(Layer):
+    '''A combined Sparse Coding + Variance Compoenent Layer
+    '''
+    def __init__(self, input_dim, output_dim, causes_dim,
+                 init='glorot_uniform',
+                 activation='linear',
+                 truncate_gradient=-1,
+                 gamma=.1,
+                 n_steps=10,
+                 batch_size=100,
+                 return_mode='states',
+                 W_regularizer=l2(.01),
+                 V_regularizer=l2(.01),
+                 activity_regularizer=None):
+
+        super(SparseCoding, self).__init__()
+        self.init = initializations.get(init)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.gamma = gamma
+        self.n_steps = n_steps
+        self.batch_size = batch_size
+        self.truncate_gradient = truncate_gradient
+        self.activation = activations.get(activation)
+        self.return_mode = return_mode
+        self.input = T.matrix()
+
+        self.W = self.init((self.output_dim, self.input_dim))
+        self.V = self.init((self.causes_dim, self.output_dim))
+        self.params = [self.W, self.V]
+
+        self.regularizers = []
+        if W_regularizer:
+            W_regularizer.set_param(self.W)
+            self.regularizers.append(W_regularizer)
+            V_regularizer.set_param(self.V)
+            self.regularizers.append(V_regularizer)
+        if activity_regularizer:
+            activity_regularizer.set_layer(self)
+            self.regularizers.append(activity_regularizer)
+
+    def get_initial_states(self, X):
+        return (alloc_zeros_matrix(X.shape[0], self.output_dim),
+                alloc_zeros_matrix(X.shape[0], self.causes_dim))
+
+    def _step(self, x_tm1, accum_1, accum_2,
+              u_tm1, accum_1_u, accum_2_u,
+              inputs, prior, *args):
+        outputs = self.activation(T.dot(x_tm1, self.W))
+        rec_error = T.sqr(inputs - outputs).sum()
+        causes = (1 + T.exp(-T.dot(u_tm1, self.C))) * .5
+        l1_norm = (self.gamma * causes * diff_abs(x_tm1)).sum()
+        l1_inov = diff_abs(x_tm1 - prior).sum() * self.gamma / 10.
+        cost = rec_error + l1_norm + l1_inov
+        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_tm1, accum_1,
+                                                   accum_2)
+        u, new_accum_1_u, new_accum_2_u = _RMSPropStep(cost, u_tm1, accum_1_u,
+                                                       accum_2_u)
+        return (x, new_accum_1, new_accum_2, u, new_accum_1_u, new_accum_2_u,
+                outputs)
+
+    def _get_output(self, inputs, train=False, prior=0.):
+        x_init, u_init = self.get_initial_states()
+        outputs, updates = theano.scan(
+            self._step,
+            sequences=[],
+            outputs_info=[x_init]*3 + [u_init]*3 + [None, ],
+            non_sequences=[inputs, prior] + self.params,
+            n_steps=self.n_steps,
+            truncate_gradient=self.truncate_gradient)
+
+        if self.return_mode == 'rec':
+            return outputs[-1][-1]
+        elif self.return_mode == 'states':
+            return outputs[0][-1]
+        elif self.return_mode == 'causes':
+            return outputs[3][-1]
+        else:
+            raise ValueError
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
