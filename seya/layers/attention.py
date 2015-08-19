@@ -3,6 +3,7 @@ import theano
 import theano.tensor as T
 
 from keras.layers.core import Layer
+from keras.utils import apply_model
 floatX = theano.config.floatX
 
 
@@ -45,7 +46,8 @@ class SpatialTransformer(Layer):
 
     def get_output(self, train=False):
         X = self.get_input(train)
-        theta = self.locnet.get_output(train).reshape((X.shape[0], 2, 3))
+        theta = apply_model(self.locnet, X)
+        theta = theta.reshape((X.shape[0], 2, 3))
         output = self._transform(theta, X, self.downsample_factor)
 
         if self.return_theta:
