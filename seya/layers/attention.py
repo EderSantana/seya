@@ -40,9 +40,7 @@ class SpatialTransformer(Layer):
         self.params = localization_net.params
         self.regularizers = localization_net.regularizers
         self.constraints = localization_net.constraints
-        self.input = T.tensor4()
-        # sync inputs
-        self.locnet.input = self.input
+        self.input = self.locnet.input  # This must be T.tensor4()
         self.return_theta = return_theta
 
     def get_output(self, train=False):
