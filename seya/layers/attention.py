@@ -3,7 +3,8 @@ import theano
 import theano.tensor as T
 
 from keras.layers.core import Layer
-from keras.utils import apply_model
+
+from ..utils import apply_model
 floatX = theano.config.floatX
 
 
