@@ -217,11 +217,11 @@ class Sparse2L(Layer):
               u_tm1, accum_1_u, accum_2_u,
               inputs, prior, *args):
         outputs = self.activation(T.dot(x_tm1, self.W))
-        rec_error = T.sqr(inputs - outputs).mean()
+        rec_error = T.sqr(inputs - outputs).sum()
         causes = (1 + T.exp(-T.dot(u_tm1, self.V))) * .5
-        l1_norm = (self.gamma * causes * diff_abs(x_tm1)).mean()
-        l1_inov = diff_abs(x_tm1 - prior).mean() * self.gamma / 10.
-        causes_norm = diff_abs(u_tm1).mean() * self.gamma
+        l1_norm = (self.gamma * causes * diff_abs(x_tm1)).sum()
+        l1_inov = diff_abs(x_tm1 - prior).sum() * self.gamma / 10.
+        causes_norm = diff_abs(u_tm1).sum() * self.gamma
         cost = rec_error + l1_norm + l1_inov + causes_norm
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_tm1, accum_1,
                                                    accum_2)
