@@ -221,7 +221,7 @@ class Sparse2L(Layer):
         causes = (1 + T.exp(-T.dot(u_tm1, self.V))) * .5
         l1_norm = (self.gamma * causes * diff_abs(x_tm1)).sum()
         l1_inov = diff_abs(x_tm1 - prior).sum() * self.gamma / 10.
-        causes_norm = diff_abs(u_tm1).sum() * self.gamma
+        causes_norm = diff_abs(u_tm1).sum() * self.gamma / 10.
         cost = rec_error + l1_norm + l1_inov + causes_norm
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_tm1, accum_1,
                                                    accum_2)
