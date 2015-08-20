@@ -136,7 +136,7 @@ class GRUM(GRU):
                           self.mem],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
                            self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
-                           self.Um_z, self.Um_r, self.Um_h, self.M],
+                           self.Um_z, self.Um_r, self.Um_h],
             truncate_gradient=self.truncate_gradient)
 
         self.updates = [(self.mem, ), (outputs[1][-1], )]
