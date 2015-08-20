@@ -133,7 +133,7 @@ class GRUM(GRU):
             sequences=[x_z, x_r, x_h, padded_mask, xm_z, xm_r, xm_h],
             outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
                                                            self.output_dim), 1),
-                          T.unbroadcast(self.mem.dimshuffle('x', 0), 1)],
+                          self.mem],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
                            self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
                            self.Um_z, self.Um_r, self.Um_h],
