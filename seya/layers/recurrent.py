@@ -115,7 +115,7 @@ class GRUM(GRU):
         mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h) + T.dot(m_tm1,
                                                                        m_h))
         m_t = zm * m_tm1 + (1 - zm) * mm_t
-        return h_t, m_t.flatten()
+        return h_t, m_t
 
     def get_output(self, train=False):
         X = self.get_input(train)
