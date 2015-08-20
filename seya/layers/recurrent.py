@@ -61,10 +61,9 @@ class GRUM(GRU):
                                    return_sequences=return_sequences)
         if mem is None:
             self.mem_dim = mem_dim
-            self.mem = shared_zeros((self.mem_dim))
         else:
-            self.mem_dim = mem.shape
             self.mem = mem
+        self.mem_dim = self.mem_dim
 
         self.Hm_z = self.init((self.mem_dim, self.output_dim))
         self.Hm_r = self.init((self.mem_dim, self.output_dim))
