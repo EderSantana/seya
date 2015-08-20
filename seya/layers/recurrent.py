@@ -115,7 +115,7 @@ class GRUM(GRU):
         mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h) + T.dot(m_tm1,
                                                                        m_h))
         m_t = zm * m_tm1 + (1 - zm) * mm_t
-        return h_t, m_t
+        return h_t, m_t.flatten()
 
     def get_output(self, train=False):
         X = self.get_input(train)
@@ -133,7 +133,7 @@ class GRUM(GRU):
             sequences=[x_z, x_r, x_h, padded_mask, xm_z, xm_r, xm_h],
             outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
                                                            self.output_dim), 1),
-                          self.mem.reshape((1, 1, self.mem_dim))],
+                          self.mem.dimshuffle('x', 0)],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
                            self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
                            self.Um_z, self.Um_r, self.Um_h],
