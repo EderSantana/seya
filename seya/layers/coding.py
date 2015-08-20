@@ -14,7 +14,7 @@ floatX = theano.config.floatX
 
 def _RMSPropStep(cost, states, accum_1, accum_2):
     rho = .9
-    lr = .001
+    lr = .009
     momentum = .9
     epsilon = 1e-8
 
