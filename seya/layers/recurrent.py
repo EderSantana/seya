@@ -49,28 +49,6 @@ class Bidirectional(Recurrent):
 
 
 class GRUM(GRU):
-    '''
-        Gated Recurrent Unit - Cho et al. 2014
-
-        Acts as a spatiotemporal projection,
-        turning a sequence of vectors into a single vector.
-
-        Eats inputs with shape:
-        (nb_samples, max_sample_length (samples shorter than this are padded
-            with zeros at the end), input_dim)
-
-        and returns outputs with shape:
-        if not return_sequences:
-            (nb_samples, output_dim)
-        if return_sequences:
-            (nb_samples, max_sample_length, output_dim)
-
-        References:
-            On the Properties of Neural Machine Translation: Encoder–Decoder
-                Approaches http://www.aclweb.org/anthology/W14-4012
-            Empirical Evaluation of Gated Recurrent Neural Networks on Sequence
-                Modeling http://arxiv.org/pdf/1412.3555v1.pdf
-    '''
     def __init__(self, input_dim, output_dim=128, mem=None,
                  mem_dim=128, init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', inner_activation='hard_sigmoid',
