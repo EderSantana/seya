@@ -1,7 +1,9 @@
 import types
+import theano
 import theano.tensor as T
 
-from keras.layers.recurrent import Recurrent
+from keras.layers.recurrent import Recurrent, GRU
+from keras.utils.theano_utils import shared_zeros, alloc_zeros_matrix
 
 
 def _get_reversed_input(self, train=False):
@@ -44,3 +46,132 @@ class Bidirectional(Recurrent):
             new_dict['backward_'+k] = v
         new_dict["name"] = self.__class__.__name__
         return new_dict
+
+
+class GRUM(GRU):
+    '''
+        Gated Recurrent Unit - Cho et al. 2014
+
+        Acts as a spatiotemporal projection,
+        turning a sequence of vectors into a single vector.
+
+        Eats inputs with shape:
+        (nb_samples, max_sample_length (samples shorter than this are padded with zeros at the end), input_dim)
+
+        and returns outputs with shape:
+        if not return_sequences:
+            (nb_samples, output_dim)
+        if return_sequences:
+            (nb_samples, max_sample_length, output_dim)
+
+        References:
+            On the Properties of Neural Machine Translation: Encoder–Decoder Approaches
+                http://www.aclweb.org/anthology/W14-4012
+            Empirical Evaluation of Gated Recurrent Neural Networks on Sequence Modeling
+                http://arxiv.org/pdf/1412.3555v1.pdf
+    '''
+    def __init__(self, input_dim, output_dim=128, mem=None,
+                 mem_dim=128, init='glorot_uniform', inner_init='orthogonal',
+                 activation='sigmoid', inner_activation='hard_sigmoid',
+                 weights=None, truncate_gradient=-1, return_sequences=False):
+
+        super(GRUM, self).__init__(input_dim, output_dim, init=init,
+                                   inner_init=inner_init, activation=activation,
+                                   inner_activation=inner_activation,
+                                   truncate_gradient=truncate_gradient,
+                                   return_sequences=return_sequences)
+        if mem is None:
+            self.mem_dim = mem_dim
+            self.mem = shared_zeros((self.mem_dim))
+        else:
+            self.mem_dim = mem.shape
+            self.mem = mem
+
+        self.Hm_z = self.init((self.mem_dim, self.output_dim))
+        self.Hm_r = self.init((self.mem_dim, self.output_dim))
+        self.Hm_h = self.init((self.mem_dim, self.output_dim))
+
+        self.Wm_z = self.init((self.input_dim, self.mem_dim))
+        self.Um_z = self.inner_init((self.mem_dim, self.mem_dim))
+        self.Vm_z = self.inner_init((self.output_dim, self.mem_dim))
+        self.bm_z = shared_zeros((self.mem_dim))
+
+        self.Wm_r = self.init((self.input_dim, self.mem_dim))
+        self.Um_r = self.inner_init((self.mem_dim, self.mem_dim))
+        self.Vm_r = self.inner_init((self.output_dim, self.mem_dim))
+        self.bm_r = shared_zeros((self.mem_dim))
+
+        self.Wm_h = self.init((self.input_dim, self.mem_dim))
+        self.Um_h = self.inner_init((self.mem_dim, self.mem_dim))
+        self.Vm_h = self.inner_init((self.output_dim, self.mem_dim))
+        self.bm_h = shared_zeros((self.mem_dim))
+
+        self.params = self.parmas + [
+            self.Hm_z, self.Hm_r, self.Hm_h,
+            self.Wm_z, self.Um_z, self.bm_z,
+            self.Wm_r, self.Um_r, self.bm_r,
+            self.Wm_h, self.Um_h, self.bm_h,
+        ]
+
+    def _step(self,
+              xz_t, xr_t, xh_t, mask_tm1,
+              xzm_t, xrm_t, xhm_t,
+              h_tm1, m_tm1,
+              u_z, u_r, u_h, hm_z, hm_r, hm_h,
+              um_z, um_r, um_h, m_z, m_r, m_h
+              ):
+        # short temr
+        h_mask_tm1 = mask_tm1 * h_tm1
+        z = self.inner_activation(xz_t + T.dot(h_mask_tm1, u_z) + T.dot(m_tm1,
+                                                                        hm_z))
+        r = self.inner_activation(xr_t + T.dot(h_mask_tm1, u_r) + T.dot(m_tm1,
+                                                                        hm_r))
+        hh_t = self.activation(xh_t + T.dot(r * h_mask_tm1, u_h) + T.dot(m_tm1,
+                                                                         hm_h))
+        h_t = z * h_mask_tm1 + (1 - z) * hh_t
+        # solid state
+        zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, um_z) + T.dot(m_tm1,
+                                                                           m_z))
+        rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, um_r) + T.dot(m_tm1,
+                                                                           m_r))
+        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, um_h) + T.dot(m_tm1,
+                                                                       m_h))
+        m_t = zm * m_tm1 + (1 - zm) * mm_t
+        return h_t, m_t
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
+        X = X.dimshuffle((1, 0, 2))
+
+        x_z = T.dot(X, self.W_z) + self.b_z
+        x_r = T.dot(X, self.W_r) + self.b_r
+        x_h = T.dot(X, self.W_h) + self.b_h
+        xm_z = T.dot(X, self.Wm_z) + self.bm_z
+        xm_r = T.dot(X, self.Wm_r) + self.bm_r
+        xm_h = T.dot(X, self.Wm_h) + self.bm_h
+        outputs, updates = theano.scan(
+            self._step,
+            sequences=[x_z, x_r, x_h, padded_mask, xm_z, xm_r, xm_h],
+            outputs_info=T.unbroadcast(alloc_zeros_matrix(X.shape[1], self.output_dim), 1),
+            non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
+                           self.Hm_h, self.Um_z, self.Um_r, self.Um_h],
+            truncate_gradient=self.truncate_gradient)
+
+        self.updates = [(self.mem, ), (outputs[1][-1], )]
+
+        if self.return_sequences:
+            return outputs[0].dimshuffle((1, 0, 2))
+        return outputs[0][-1]
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "input_dim": self.input_dim,
+                "output_dim": self.output_dim,
+                "mem_dim": self.mem_dim,
+                "init": self.init.__name__,
+                "inner_init": self.inner_init.__name__,
+                "activation": self.activation.__name__,
+                "inner_activation": self.inner_activation.__name__,
+                "truncate_gradient": self.truncate_gradient,
+                "return_sequences": self.return_sequences}
