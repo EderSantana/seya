@@ -96,7 +96,7 @@ class GRUM(GRU):
               xzm_t, xrm_t, xhm_t,
               h_tm1, m_tm1,
               u_z, u_r, u_h, hm_z, hm_r, hm_h,
-              um_z, um_r, um_h, m_z, m_r, m_h
+              vm_z, vm_r, vm_h, m_z, m_r, m_h
               ):
         # short temr
         h_mask_tm1 = mask_tm1 * h_tm1
@@ -108,11 +108,11 @@ class GRUM(GRU):
                                                                          hm_h))
         h_t = z * h_mask_tm1 + (1 - z) * hh_t
         # solid state
-        zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, um_z) + T.dot(m_tm1,
+        zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, vm_z) + T.dot(m_tm1,
                                                                            m_z))
-        rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, um_r) + T.dot(m_tm1,
+        rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r) + T.dot(m_tm1,
                                                                            m_r))
-        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, um_h) + T.dot(m_tm1,
+        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h) + T.dot(m_tm1,
                                                                        m_h))
         m_t = zm * m_tm1 + (1 - zm) * mm_t
         return h_t, m_t
@@ -131,9 +131,12 @@ class GRUM(GRU):
         outputs, updates = theano.scan(
             self._step,
             sequences=[x_z, x_r, x_h, padded_mask, xm_z, xm_r, xm_h],
-            outputs_info=T.unbroadcast(alloc_zeros_matrix(X.shape[1], self.output_dim), 1),
+            outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
+                                                           self.output_dim), 1),
+                          self.mem],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
-                           self.Hm_h, self.Um_z, self.Um_r, self.Um_h],
+                           self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
+                           self.Um_z, self.Um_r, self.Um_h, self.M],
             truncate_gradient=self.truncate_gradient)
 
         self.updates = [(self.mem, ), (outputs[1][-1], )]
