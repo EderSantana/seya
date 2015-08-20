@@ -60,7 +60,7 @@ class GRUM(GRU):
                                    truncate_gradient=truncate_gradient,
                                    return_sequences=return_sequences)
         if mem is None:
-            self.mem_dim = mem_dim
+            self.mem = shared_zeros((mem_dim))
         else:
             self.mem = mem
         self.mem_dim = self.mem_dim
