@@ -63,7 +63,7 @@ class GRUM(GRU):
             self.mem = shared_zeros((mem_dim))
         else:
             self.mem = mem
-        self.mem_dim = self.mem_dim
+        self.mem_dim = mem_dim
 
         self.Hm_z = self.init((self.mem_dim, self.output_dim))
         self.Hm_r = self.init((self.mem_dim, self.output_dim))
