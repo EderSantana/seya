@@ -140,7 +140,7 @@ class GRUM(GRU):
                            self.Um_z, self.Um_r, self.Um_h],
             truncate_gradient=self.truncate_gradient)
 
-        self.updates = [(self.mem, ), (outputs[1][-1:], )]
+        self.mem_updates = [(self.mem, ), (outputs[1][-1:], )]
 
         if self.return_sequences:
             return outputs[0].dimshuffle((1, 0, 2))
