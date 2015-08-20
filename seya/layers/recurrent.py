@@ -60,7 +60,7 @@ class GRUM(GRU):
                                    truncate_gradient=truncate_gradient,
                                    return_sequences=return_sequences)
         if mem is None:
-            self.mem = shared_zeros((mem_dim))
+            self.mem = shared_zeros((1, mem_dim))
         else:
             self.mem = mem
         self.mem_dim = mem_dim
@@ -139,7 +139,7 @@ class GRUM(GRU):
                            self.Um_z, self.Um_r, self.Um_h],
             truncate_gradient=self.truncate_gradient)
 
-        self.updates = [(self.mem, ), (outputs[1][-1], )]
+        self.updates = [(self.mem, ), (outputs[1][-1:], )]
 
         if self.return_sequences:
             return outputs[0].dimshuffle((1, 0, 2))
