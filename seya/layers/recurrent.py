@@ -85,7 +85,7 @@ class GRUM(GRU):
         self.Vm_h = self.inner_init((self.output_dim, self.mem_dim))
         self.bm_h = shared_zeros((self.mem_dim))
 
-        self.params = self.parmas + [
+        self.params = self.params + [
             self.Hm_z, self.Hm_r, self.Hm_h,
             self.Wm_z, self.Um_z, self.bm_z,
             self.Wm_r, self.Um_r, self.bm_r,
