@@ -117,7 +117,7 @@ class GRUM(GRU):
         h_t = z * h_mask_tm1 + (1 - z) * hh_t
         return h_t, m_t
 
-    def get_output(self, train=False):
+    def get_output(self, train=False, mem_updates=False):
         X = self.get_input(train)
         padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
         X = X.dimshuffle((1, 0, 2))
@@ -142,6 +142,8 @@ class GRUM(GRU):
 
         self.mem_updates = [(self.mem, ), (outputs[1][-1:], )]
 
+        if mem_updates:
+            return outputs[1][-1:]
         if self.return_sequences:
             return outputs[0].dimshuffle((1, 0, 2))
         return outputs[0][-1]
