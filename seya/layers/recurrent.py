@@ -98,15 +98,7 @@ class GRUM(GRU):
               u_z, u_r, u_h, hm_z, hm_r, hm_h,
               vm_z, vm_r, vm_h, m_z, m_r, m_h
               ):
-        # short temr
         h_mask_tm1 = mask_tm1 * h_tm1
-        z = self.inner_activation(xz_t + T.dot(h_mask_tm1, u_z) + T.dot(m_tm1,
-                                                                        hm_z)[0])
-        r = self.inner_activation(xr_t + T.dot(h_mask_tm1, u_r) + T.dot(m_tm1,
-                                                                        hm_r)[0])
-        hh_t = self.activation(xh_t + T.dot(r * h_mask_tm1, u_h) + T.dot(m_tm1,
-                                                                         hm_h)[0])
-        h_t = z * h_mask_tm1 + (1 - z) * hh_t
         # solid state
         zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, vm_z).mean(axis=0)
                                    + T.dot(m_tm1, m_z))
@@ -115,6 +107,14 @@ class GRUM(GRU):
         mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h).mean(axis=0)
                                + T.dot(m_tm1, m_h))
         m_t = zm * m_tm1 + (1 - zm) * mm_t
+        # short temr
+        z = self.inner_activation(xz_t + T.dot(h_mask_tm1, u_z)
+                                  + T.dot(m_t, hm_z)[0])
+        r = self.inner_activation(xr_t + T.dot(h_mask_tm1, u_r)
+                                  + T.dot(m_t, hm_r)[0])
+        hh_t = self.activation(xh_t + T.dot(r * h_mask_tm1, u_h)
+                               + T.dot(m_t, hm_h)[0])
+        h_t = z * h_mask_tm1 + (1 - z) * hh_t
         return h_t, m_t
 
     def get_output(self, train=False):
