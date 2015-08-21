@@ -185,9 +185,6 @@ class ExoGRUM(GRUM):
             return_sequences=return_sequences, return_mode=return_mode)
 
     def get_output(self, train=False, mem_updates=False):
-        inp = self.get_input(train)
-        X = inp[:-1, :-1, :-self.mem_dim]
-        mem = inp[-1., -1:, self.mem_dim:]
         X, mem = self.get_input(train)
         padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
         X = X.dimshuffle((1, 0, 2))
