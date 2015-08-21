@@ -13,7 +13,7 @@ floatX = theano.config.floatX
 class Lambda(MaskedLayer):
     def __init__(self, func):
         super(Lambda, self).__init__()
-        self.func
+        self.func = func
 
     def get_output(self, train=False):
         X = self.get_input(train)
