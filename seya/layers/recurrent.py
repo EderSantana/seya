@@ -147,16 +147,15 @@ class GRUM(GRU):
         if mem_updates:
             return outputs[1][-1:]
 
-        if self.return_mode == 'states':
-            out = outputs[0].dimshuffle((1, 0, 2))
-        elif self.return_sequences == 'both':
-            h = outputs[0].dimshuffle((1, 0, 2))
-            m = outputs[1].dimshuffle(0, 'x', 1)
-            out = T.concatenate([h, m], axis=-1)
         if self.return_sequences:
-            return out.dimshuffle((1, 0, 2))
+            out = outputs[0].dimshuffle((1, 0, 2))
         else:
-            return out[-1]
+            out = outputs[0][-1]
+
+        if self.return_mode == 'states':
+            return out
+        elif self.return_mode == 'both':
+            return [out, outputs[1][-1]]
 
     def get_config(self):
         return {"name": self.__class__.__name__,
@@ -189,6 +188,7 @@ class ExoGRUM(GRUM):
         inp = self.get_input(train)
         X = inp[:-1, :-1, :-self.mem_dim]
         mem = inp[-1., -1:, self.mem_dim:]
+        X, mem = self.get_input(train)
         padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
         X = X.dimshuffle((1, 0, 2))
 
@@ -215,17 +215,15 @@ class ExoGRUM(GRUM):
         if mem_updates:
             return outputs[1][-1:]
 
-        if self.return_mode == 'states':
-            out = outputs[0].dimshuffle((1, 0, 2))
-        elif self.return_mode == 'both':
-            h = outputs[0].dimshuffle((1, 0, 2))
-            m = outputs[1].dimshuffle(0, 'x', 1)
-            out = T.concatenate([h, m], axis=-1)
-
         if self.return_sequences:
-            return out.dimshuffle((1, 0, 2))
+            out = outputs[0].dimshuffle((1, 0, 2))
         else:
-            return out[-1]
+            out = outputs[0][-1]
+
+        if self.return_mode == 'states':
+            return out
+        elif self.return_mode == 'both':
+            return [out, outputs[1][-1]]
 
     def get_config(self):
         return {"name": self.__class__.__name__,
