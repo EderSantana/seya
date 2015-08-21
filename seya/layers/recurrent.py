@@ -52,7 +52,8 @@ class GRUM(GRU):
     def __init__(self, input_dim, output_dim=128, mem=None,
                  mem_dim=128, init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', inner_activation='hard_sigmoid',
-                 weights=None, truncate_gradient=-1, return_sequences=False):
+                 weights=None, truncate_gradient=-1, return_sequences=False,
+                 return_mode='states'):
 
         super(GRUM, self).__init__(input_dim, output_dim, init=init,
                                    inner_init=inner_init, activation=activation,
@@ -64,6 +65,7 @@ class GRUM(GRU):
         else:
             self.mem = mem
         self.mem_dim = mem_dim
+        self.return_mode = return_mode
 
         self.Hm_z = self.init((self.mem_dim, self.output_dim))
         self.Hm_r = self.init((self.mem_dim, self.output_dim))
@@ -144,9 +146,17 @@ class GRUM(GRU):
 
         if mem_updates:
             return outputs[1][-1:]
+
+        if self.return_mode == 'states':
+            out = outputs[0].dimshuffle((1, 0, 2))
+        elif self.return_sequences == 'both':
+            h = outputs[0].dimshuffle((1, 0, 2))
+            m = outputs[1].dimshuffle(0, 'x', 1)
+            out = T.concatenate([h, m], axis=-1)
         if self.return_sequences:
-            return outputs[0].dimshuffle((1, 0, 2))
-        return outputs[0][-1]
+            return out.dimshuffle((1, 0, 2))
+        else:
+            return out[-1]
 
     def get_config(self):
         return {"name": self.__class__.__name__,
@@ -165,14 +175,15 @@ class ExoGRUM(GRUM):
     def __init__(self, input_dim, output_dim=128, mem=None,
                  mem_dim=128, init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', inner_activation='hard_sigmoid',
-                 weights=None, truncate_gradient=-1, return_sequences=False):
+                 weights=None, truncate_gradient=-1, return_sequences=False,
+                 return_mode='states'):
 
         super(ExoGRUM, self).__init__(
             input_dim=input_dim, output_dim=output_dim, mem=mem,
             mem_dim=mem_dim, init=init, inner_init=inner_init,
             activation=activation, inner_activation=inner_activation,
             weights=weights, truncate_gradient=truncate_gradient,
-            return_sequences=return_sequences)
+            return_sequences=return_sequences, return_mode=return_mode)
 
     def get_output(self, train=False, mem_updates=False):
         inp = self.get_input(train)
@@ -203,9 +214,17 @@ class ExoGRUM(GRUM):
 
         if mem_updates:
             return outputs[1][-1:]
+
+        if self.return_mode == 'states':
+            out = outputs[0].dimshuffle((1, 0, 2))
+        elif self.return_sequences == 'both':
+            h = outputs[0].dimshuffle((1, 0, 2))
+            m = outputs[1].dimshuffle(0, 'x', 1)
+            out = T.concatenate([h, m], axis=-1)
         if self.return_sequences:
-            return outputs[0].dimshuffle((1, 0, 2))
-        return outputs[0][-1]
+            return out.dimshuffle((1, 0, 2))
+        else:
+            return out[-1]
 
     def get_config(self):
         return {"name": self.__class__.__name__,
