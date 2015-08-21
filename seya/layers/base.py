@@ -10,6 +10,16 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 floatX = theano.config.floatX
 
 
+class Lambda(MaskedLayer):
+    def __init__(self, func):
+        super(Lambda, self).__init__()
+        self.func
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        return self.func(X)
+
+
 class Pass(MaskedLayer):
     ''' Do literally nothing
         It can the first layer
@@ -77,7 +87,7 @@ class Unpool(Layer):
     '''
     def __init__(self, ds):
         super(Unpool, self).__init__()
-        self.input = T.tensor4() #
+        self.input = T.tensor4()
         self.ds = ds
 
     def get_output(self, train=False):
@@ -107,7 +117,7 @@ class OrthogonalDense(Dense):
     '''
     def __init__(self, dim):
         super(OrthogonalDense, self).__init__(input_dim=dim,
-                                          output_dim=dim)
+                                              output_dim=dim)
         self.n_free = dim * (dim-1) / 2
         self.W = self.W.flatten()[:self.n_free]
         self.dim = dim
@@ -115,10 +125,10 @@ class OrthogonalDense(Dense):
 
     def _get_rotation(self):
         A = T.eye(self.dim)
-        for i, (x,y) in enumerate(combinations(range(self.dim), 2)):
+        for i, (x, y) in enumerate(combinations(range(self.dim), 2)):
             B = T.eye(self.dim)
 
-            if x==0:
+            if x == 0:
                 b0 = []
                 v3 = []
             else:
