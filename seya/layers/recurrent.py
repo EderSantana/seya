@@ -217,10 +217,11 @@ class ExoGRUM(GRUM):
 
         if self.return_mode == 'states':
             out = outputs[0].dimshuffle((1, 0, 2))
-        elif self.return_sequences == 'both':
+        elif self.return_mode == 'both':
             h = outputs[0].dimshuffle((1, 0, 2))
             m = outputs[1].dimshuffle(0, 'x', 1)
             out = T.concatenate([h, m], axis=-1)
+
         if self.return_sequences:
             return out.dimshuffle((1, 0, 2))
         else:
