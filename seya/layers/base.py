@@ -151,15 +151,12 @@ class OrthogonalDense(Dense):
                                T.cos(self.W[i]),
                                b2,
                                -T.sin(self.W[i]),
-                               b1
-            ])
+                               b1])
             v2 = T.concatenate([b0,
                                T.sin(self.W[i]),
                                b2,
                                T.cos(self.W[i]),
-                               b1
-            ])
-
+                               b1])
 
             B = T.concatenate([v1, v2, v3, v4], axis=0) + T.eye(self.dim)
             A = T.dot(A, B)
