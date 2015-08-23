@@ -415,9 +415,8 @@ class SingleCell(GRU):
         zm = T.dot(zmm, vm_h) + bm_h
         rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
                                    + T.dot(m_tm1, m_r))
-        mm_t = m_tm1 * (1 - rm)
-        m_tt  = mm_t + zm
-        m_t = m_tt.mean(axis=0).dimshuffle('x', 0)
+        mm_t = m_tm1 * (1 - rm).mean(axis=0)
+        m_t  = mm_t + zm.mean(axis=0)
         # short temr
         z = self.inner_activation(xz_t + T.dot(h_mask_tm1, u_z)
                                   + T.dot(m_t, hm_z)[0])
