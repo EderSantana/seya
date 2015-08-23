@@ -103,7 +103,7 @@ class GRUM(GRU):
         h_mask_tm1 = mask_tm1 * h_tm1
         # solid state
         zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, vm_z)
-                                   + T.dot(m_tm1, m_z)).means(axis=0)
+                                   + T.dot(m_tm1, m_z)).mean(axis=0)
         rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
                                    + T.dot(m_tm1, m_r)).mean(axis=0)
         mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h)
