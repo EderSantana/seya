@@ -102,12 +102,12 @@ class GRUM(GRU):
               ):
         h_mask_tm1 = mask_tm1 * h_tm1
         # solid state
-        zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, vm_z).mean(axis=0)
-                                   + T.dot(m_tm1, m_z))
-        rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r).mean(axis=0)
-                                   + T.dot(m_tm1, m_r))
-        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h).mean(axis=0)
-                               + T.dot(m_tm1, m_h))
+        zm = self.inner_activation(xzm_t + T.dot(h_mask_tm1, vm_z)
+                                   + T.dot(m_tm1, m_z)).means(axis=0)
+        rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
+                                   + T.dot(m_tm1, m_r)).mean(axis=0)
+        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h)
+                               + T.dot(m_tm1, m_h)).mean(axis=0)
         m_t = zm * m_tm1 + (1 - zm) * mm_t
         # short temr
         z = self.inner_activation(xz_t + T.dot(h_mask_tm1, u_z)
@@ -133,7 +133,7 @@ class GRUM(GRU):
         outputs, updates = theano.scan(
             self._step,
             sequences=[x_z, x_r, x_h, padded_mask, xm_z.mean(axis=0),
-                       xm_r.mean(axis=0), xm_h.mean(axis=0)],
+                       xm_r, xm_h],
             outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
                                                            self.output_dim), 1),
                           self.mem],
