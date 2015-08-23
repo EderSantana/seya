@@ -410,7 +410,7 @@ class SingleCell(GRU):
         h_mask_tm1 = mask_tm1 * h_tm1
         # solid state
         zmm = T.tanh(xzm_t + T.dot(h_mask_tm1, vm_z)
-                                   + T.dot(m_tm1, m_z))
+                                   + T.dot(m_tm1, m_z)[0])
         zm = T.dot(zmm, vm_h) + bm_h
         rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
                                    + T.dot(m_tm1, m_r))
