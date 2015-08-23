@@ -390,7 +390,6 @@ class SingleCell(GRU):
         self.Vm_r = self.inner_init((self.output_dim, self.mem_dim))
         self.bm_r = shared_zeros((self.mem_dim))
 
-        self.Um_h = self.inner_init((self.mem_dim, self.mem_dim))
         self.Vm_h = self.inner_init((self.mem_dim, self.mem_dim))
         self.bm_h = shared_zeros((self.mem_dim))
 
@@ -398,7 +397,7 @@ class SingleCell(GRU):
             self.Hm_z, self.Hm_r, self.Hm_h,
             self.Wm_z, self.Um_z, self.bm_z,
             self.Wm_r, self.Um_r, self.bm_r,
-            self.Um_h, self.bm_h,
+            self.bm_h,
         ]
 
     def _step(self,
@@ -446,7 +445,7 @@ class SingleCell(GRU):
                           self.mem],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
                            self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
-                           self.Um_z, self.Um_r, self.Um_h, self.bm_h],
+                           self.Um_z, self.Um_r, self.bm_h],
             truncate_gradient=self.truncate_gradient)
 
         self.mem_updates = outputs[1][-1]
