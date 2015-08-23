@@ -403,7 +403,7 @@ class SingleCell(GRU):
 
     def _step(self,
               xz_t, xr_t, xh_t, mask_tm1,
-              xzm_t, xrm_t, xhm_t,
+              xzm_t, xrm_t,
               h_tm1, m_tm1,
               u_z, u_r, u_h, hm_z, hm_r, hm_h,
               vm_z, vm_r, vm_h, m_z, m_r, bm_h
@@ -439,7 +439,7 @@ class SingleCell(GRU):
         xm_r = T.dot(X, self.Wm_r) + self.bm_r
         outputs, updates = theano.scan(
             self._step,
-            sequences=[x_z, x_r, x_h, padded_mask, xm_z.mean(axis=0),
+            sequences=[x_z, x_r, x_h, padded_mask, xm_z,
                        xm_r],
             outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
                                                            self.output_dim), 1),
