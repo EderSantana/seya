@@ -364,7 +364,7 @@ class SingleCell(GRU):
                  weights=None, truncate_gradient=-1, return_sequences=False,
                  return_mode='states'):
 
-        super(GRUM2, self).__init__(input_dim, output_dim, init=init,
+        super(SingleCell, self).__init__(input_dim, output_dim, init=init,
                                     inner_init=inner_init, activation=activation,
                                     inner_activation=inner_activation,
                                     truncate_gradient=truncate_gradient,
