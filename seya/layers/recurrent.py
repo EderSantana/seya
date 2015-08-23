@@ -450,7 +450,7 @@ class SingleCell(GRU):
                            self.Um_z, self.Um_r, self.Um_h, self.bm_h],
             truncate_gradient=self.truncate_gradient)
 
-         self.mem_updates = outputs[1][-1]
+        self.mem_updates = outputs[1][-1]
 
         if mem_updates:
             return outputs[1][-1:]
