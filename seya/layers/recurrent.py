@@ -406,12 +406,12 @@ class SingleCell(GRU):
               xzm_t, xrm_t, xhm_t,
               h_tm1, m_tm1,
               u_z, u_r, u_h, hm_z, hm_r, hm_h,
-              vm_z, vm_r, vm_h, m_z, m_r, m_h
+              vm_z, vm_r, vm_h, m_z, m_r, bm_h
               ):
         h_mask_tm1 = mask_tm1 * h_tm1
         # solid state
         zmm = T.tanh(xzm_t + T.dot(h_mask_tm1, vm_z)
-                                   + T.dot(m_tm1, m_z))
+                                   + T.dot(m_tm2, m_z))
         zmm = T.dot(zmm, vm_h) + bm_h
         rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
                                    + T.dot(m_tm1, m_r))
