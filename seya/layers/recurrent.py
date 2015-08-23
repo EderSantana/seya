@@ -106,7 +106,7 @@ class GRUM(GRU):
                                    + T.dot(m_tm1, m_z)[0]).mean(axis=0)
         rm = self.inner_activation(xrm_t + T.dot(h_mask_tm1, vm_r)
                                    + T.dot(m_tm1, m_r)[0]).mean(axis=0)
-        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h)
+        mm_t = self.activation(xhm_t + T.dot(rm * m_tm1, vm_h)[0]
                                + T.dot(m_tm1, m_h)[0]).mean(axis=0)
         m_t = zm * m_tm1 + (1 - zm) * mm_t
         # short temr
@@ -438,11 +438,9 @@ class SingleCell(GRU):
         xm_r = T.dot(X, self.Wm_r) + self.bm_r
         outputs, updates = theano.scan(
             self._step,
-            sequences=[x_z, x_r, x_h, padded_mask, xm_z,
-                       xm_r],
-            outputs_info=[T.unbroadcast(alloc_zeros_matrix(X.shape[1],
-                                                           self.output_dim), 1),
-                          self.mem],
+            sequences=[x_z, x_r, x_h, padded_mask, xm_z, xm_r],
+            outputs_info=[T.unbroadcast(
+                alloc_zeros_matrix(X.shape[1], self.output_dim), 1), self.mem],
             non_sequences=[self.U_z, self.U_r, self.U_h, self.Hm_z, self.Hm_r,
                            self.Hm_h, self.Vm_z, self.Vm_r, self.Vm_h,
                            self.Um_z, self.Um_r, self.bm_h],
