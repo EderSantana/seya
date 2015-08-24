@@ -7,14 +7,14 @@ import warnings, time, copy, pprint
 from six.moves import range
 import six
 
-from . import optimizers
-from . import objectives
-from . import regularizers
-from . import constraints
-from . import callbacks as cbks
-from .utils.layer_utils import container_from_config
-from .utils.generic_utils import Progbar, printv
-from .layers import containers
+from keras import optimizers
+from keras import objectives
+from keras import regularizers
+from keras import constraints
+from keras import callbacks as cbks
+from keras.utils.layer_utils import container_from_config
+from keras.utils.generic_utils import Progbar, printv
+from keras.layers import containers
 
 
 def standardize_y(y):
