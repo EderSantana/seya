@@ -73,7 +73,7 @@ class SparseCoding(Layer):
         return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train=False, prior=0.):
-        initial_states = self.get_initial_states()
+        initial_states = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
