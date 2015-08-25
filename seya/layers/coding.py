@@ -556,26 +556,9 @@ class Matrix(Layer):
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
         return x, new_accum_1, new_accum_2, outputs
 
-    def _get_output(self, inputs, train=False, prior=0.):
-        initial_states = self.get_initial_states(inputs)
-        outputs, updates = theano.scan(
-            self._step,
-            sequences=[],
-            outputs_info=[initial_states, ]*3 + [None, ],
-            non_sequences=[inputs, prior],
-            n_steps=self.n_steps,
-            truncate_gradient=self.truncate_gradient)
-
-        outs = outputs[0][-1]
-        if self.return_reconstruction:
-            #return outputs[-1][-1]
-            return T.dot(outs, self.W)
-        else:
-            return outs
-
     def get_output(self, train=False):
         inputs = self.get_input(train)
-        return self._get_output(inputs, train)
+        return T.dot(self.X, self.W) + inputs.sum()*0
 
     def get_config(self):
         return {"name": self.__class__.__name__,
