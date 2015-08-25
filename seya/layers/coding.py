@@ -540,7 +540,7 @@ class Matrix(Layer):
 
     def _fista(self, X):
         Phi = self.W.get_value().T
-        Xnew = fista(X, Phi, max_iterations=100)
+        Xnew = fista(X, Phi, max_iterations=100).astype('float32')
         self.X.set_value(Xnew.T)
 
     def get_initial_states(self, X):
