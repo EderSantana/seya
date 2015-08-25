@@ -538,10 +538,9 @@ class Matrix(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-    def _fista_X(self):
-        I = self.X.get_value().T
+    def _fista(self, X):
         Phi = self.W.get_value().T
-        Xnew = fista(I, Phi, max_iterations=100)
+        Xnew = fista(X, Phi, max_iterations=100)
         self.X.set_value(Xnew.T)
 
     def get_initial_states(self, X):
