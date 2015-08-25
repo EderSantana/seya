@@ -82,10 +82,13 @@ class SparseCoding(Layer):
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
+        outs = outputs[0][-1]
+        outs = T.switch(T.lt(abs(outs), .001), outs, 0)
         if self.return_reconstruction:
-            return outputs[-1][-1]
+            #return outputs[-1][-1]
+            return T.dot(outs, W)
         else:
-            return outputs[0][-1]
+            return outs
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
