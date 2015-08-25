@@ -83,7 +83,6 @@ class SparseCoding(Layer):
             truncate_gradient=self.truncate_gradient)
 
         outs = outputs[0][-1]
-        outs = T.switch(T.lt(abs(outs), .001), outs, 0)
         if self.return_reconstruction:
             #return outputs[-1][-1]
             return T.dot(outs, self.W)
