@@ -86,7 +86,7 @@ class SparseCoding(Layer):
         outs = T.switch(T.lt(abs(outs), .001), outs, 0)
         if self.return_reconstruction:
             #return outputs[-1][-1]
-            return T.dot(outs, W)
+            return T.dot(outs, self.W)
         else:
             return outs
 
