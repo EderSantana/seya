@@ -502,3 +502,126 @@ class TemporalSparseCoding(Recurrent):
                 "activation": self.activation.__name__,
                 "truncate_gradient": self.truncate_gradient,
                 "return_reconstruction": self.return_reconstruction}
+
+
+class Matrix(Layer):
+    def __init__(self, input_dim, output_dim,
+                 init='glorot_uniform',
+                 activation='linear',
+                 truncate_gradient=-1,
+                 gamma=.1,
+                 n_steps=10,
+                 return_reconstruction=False,
+                 W_regularizer=l2(.01),
+                 activity_regularizer=None):
+
+        super(Matrix, self).__init__()
+        self.init = initializations.get(init)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.gamma = gamma
+        self.n_steps = n_steps
+        self.truncate_gradient = truncate_gradient
+        self.activation = activations.get(activation)
+        self.return_reconstruction = return_reconstruction
+        self.input = T.matrix()
+
+        self.W = self.init((self.output_dim, self.input_dim))
+        self.X = self.init((100, output_dim)) # 100 = batch size
+        self.params = [self.W, ]
+
+        self.regularizers = []
+        if W_regularizer:
+            W_regularizer.set_param(self.W)
+            self.regularizers.append(W_regularizer)
+        if activity_regularizer:
+            activity_regularizer.set_layer(self)
+            self.regularizers.append(activity_regularizer)
+
+    def _fista_X(self):
+        I = self.X.get_value().T
+        Phi = self.W.get_value().T
+        Xnew = fista(I, Phi, max_iterations=100)
+        self.X.set_value(Xnew.T)
+
+    def get_initial_states(self, X):
+        return alloc_zeros_matrix(X.shape[0], self.output_dim)
+
+    def _step(self, x_t, accum_1, accum_2, inputs, prior):
+        outputs = self.activation(T.dot(x_t, self.W))
+        rec_error = T.sqr(inputs - outputs).sum()
+        l1_norm = (self.gamma * diff_abs(x_t)).sum()
+        l1_inov = diff_abs(x_t - prior).sum() * self.gamma / 10.
+        cost = rec_error + l1_norm + l1_inov
+        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
+        return x, new_accum_1, new_accum_2, outputs
+
+    def _get_output(self, inputs, train=False, prior=0.):
+        initial_states = self.get_initial_states(inputs)
+        outputs, updates = theano.scan(
+            self._step,
+            sequences=[],
+            outputs_info=[initial_states, ]*3 + [None, ],
+            non_sequences=[inputs, prior],
+            n_steps=self.n_steps,
+            truncate_gradient=self.truncate_gradient)
+
+        outs = outputs[0][-1]
+        if self.return_reconstruction:
+            #return outputs[-1][-1]
+            return T.dot(outs, self.W)
+        else:
+            return outs
+
+    def get_output(self, train=False):
+        inputs = self.get_input(train)
+        return self._get_output(inputs, train)
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "input_dim": self.input_dim,
+                "output_dim": self.output_dim,
+                "init": self.init.__name__,
+                "activation": self.activation.__name__,
+                "truncate_gradient": self.truncate_gradient,
+                "return_reconstruction": self.return_reconstruction}
+
+
+import numpy as np
+import math
+import scipy.sparse as sps
+import scipy.sparse.linalg
+import time
+
+def fista(I, Phi, lambdav=.1, max_iterations=150, display=False):
+  """ FISTA Inference for Lasso (l1) Problem
+  I: Batches of images (dim x batch)
+  Phi: Dictionary (dim x dictionary element) (nparray or sparse array)
+  lambdav: Sparsity penalty
+  max_iterations: Maximum number of iterations
+  """
+  def proxOp(x,t):
+    """ L1 Proximal Operator """
+    return np.fmax(x-t, 0) + np.fmin(x+t, 0)
+
+  x = np.zeros((Phi.shape[1], I.shape[1]))
+  Q = Phi.T.dot(Phi)
+  c = -2*Phi.T.dot(I)
+
+  L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+  invL = 1/float(L)
+
+  y = x
+  t = 1
+
+  for i in range(max_iterations):
+    g = 2*Q.dot(y) + c
+    x2 = proxOp(y-invL*g,invL*lambdav)
+    t2 = (1+math.sqrt(1+4*(t**2)))/2.0
+    y = x2 + ((t-1)/t2)*(x2-x)
+    x = x2
+    t = t2
+    if display == True:
+      print "L1 Objective " +  str(np.sum((I-Phi.dot(x2))**2) + lambdav*np.sum(np.abs(x2)))
+
+  return x2
