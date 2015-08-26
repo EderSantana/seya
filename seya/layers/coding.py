@@ -606,7 +606,7 @@ class Fista(object):
 
     def optimize(self, x_batch):
         self.inputs.set_value(x_batch.astype(floatX))
-        for i in self.max_iter:
+        for i in range(self.max_iter):
             self.F()
 
     def _proxOp(self, x, t):
