@@ -590,7 +590,12 @@ class Fista(object):
         self.grads = T.grad(cost, X)
         self.updates = []
 
-        self.invL = shared_scalar(.001)
+        self.invL = shared_scalar(.00001)
+        Phi = self.params.get_value().T
+        Q = Phi.T.dot(Phi)
+        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+        self.invL.set_value(np.float32(1/L[0]))
+
         self.y = model.init((model.batch_size, model.output_dim))
         self.t = shared_scalar(1)
 
