@@ -506,7 +506,7 @@ class TemporalSparseCoding(Recurrent):
                 "return_reconstruction": self.return_reconstruction}
 
 
-class Matrix(Layer):
+class SparseCodingFista(Layer):
     def __init__(self, input_dim, output_dim,
                  init='glorot_uniform',
                  activation='linear',
@@ -518,7 +518,7 @@ class Matrix(Layer):
                  W_regularizer=l2(.01),
                  activity_regularizer=None):
 
-        super(Matrix, self).__init__()
+        super(SparseCodingFista, self).__init__()
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -531,7 +531,7 @@ class Matrix(Layer):
         self.input = T.matrix()
 
         self.W = self.init((self.output_dim, self.input_dim))
-        self.X = self.init((batch_size, output_dim))
+        self.X = self.init((self.batch_size, output_dim))
         self.params = [self.W, ]
 
         self.regularizers = []
