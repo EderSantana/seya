@@ -590,15 +590,11 @@ class Fista(object):
         self.grads = T.grad(cost, X)
         self.updates = []
 
-        Phi = params.get_value().T
-        Q = Phi.T.dot(Phi)
-        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
-        invL = .01 #1/float(L)
-
+        self.invL = shared_scalar(.001)
         self.y = model.init((model.batch_size, model.output_dim))
         self.t = shared_scalar(1)
 
-        x2 = self._proxOp(self.y-invL*self.grads, invL*self.lambdav)
+        x2 = self._proxOp(self.y-self.invL*self.grads, self.invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(self.t**2))/2.
         self.updates.append((self.y, x2 + ((self.t-1)/t2)*(x2-self.X)))
         self.updates.append((self.X, x2))
@@ -608,6 +604,10 @@ class Fista(object):
                                  allow_input_downcast=True)
 
     def optimize(self, x_batch):
+        Phi = self.params.get_value().T
+        Q = Phi.T.dot(Phi)
+        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0].astype(floatX)
+        self.invL.set_value(1/L)
         self.inputs.set_value(x_batch.astype(floatX))
         for i in range(self.max_iter):
             self.F()
