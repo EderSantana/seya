@@ -596,7 +596,7 @@ class Fista(object):
         invL = 1/float(L)
 
         self.y = model.init((model.batch_size, model.output_dim))
-        self.t = model.init((1,))
+        self.t = shared_scalar(1)
 
         x2 = self._proxOp(self.y-invL*self.grads, invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(self.t**2))/2.
