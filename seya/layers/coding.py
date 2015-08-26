@@ -622,7 +622,7 @@ class Fista(object):
         return T.maximum(x-t, 0) + T.minimum(x+t, 0)
 
 
-def fista(cost, params, Phi, lambdav=.1, max_iterations=150, display=False):
+def fista(I, Phi, lambdav=.1, max_iterations=150, display=False):
     """ FISTA Inference for Lasso (l1) Problem
     I: Batches of images (dim x batch)
     Phi: Dictionary (dim x dictionary element) (nparray or sparse array)
