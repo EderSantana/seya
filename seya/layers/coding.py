@@ -66,7 +66,7 @@ class SparseCoding(Layer):
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.output_dim)
 
-    def _step(self, x_t, accum_1, accum_2, inputs, prior):
+    def _step(self, x_t, accum_1, accum_2, inputs, prior, W):
         outputs = self.activation(T.dot(x_t, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
         l1_norm = (self.gamma * diff_abs(x_t)).sum()
@@ -81,7 +81,7 @@ class SparseCoding(Layer):
             self._step,
             sequences=[],
             outputs_info=[initial_states, ]*3 + [None, ],
-            non_sequences=[inputs, prior],
+            non_sequences=[inputs, prior, self.W],
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
