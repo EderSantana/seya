@@ -593,7 +593,7 @@ class Fista(object):
         Phi = params.get_value().T
         Q = Phi.T.dot(Phi)
         L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
-        invL = 1/float(L)
+        invL = .01 #1/float(L)
 
         self.y = model.init((model.batch_size, model.output_dim))
         self.t = shared_scalar(1)
