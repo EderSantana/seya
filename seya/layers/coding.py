@@ -544,7 +544,7 @@ class SparseCodingFista(Layer):
 
         inputs = self.init((self.batch_size, self.input_dim))
         cost = T.sqr(inputs - T.dot(self.X, self.W)).sum()
-        self._fista = Fista(cost, self.X, self.W, inputs)
+        self._fista = Fista(cost, self.X, self.W, inputs, init=self)
 
     # def _fista(self, X):
     #     Phi = self.W.get_value().T
@@ -568,7 +568,8 @@ class SparseCodingFista(Layer):
 
 
 class Fista(object):
-    def __init__(self, cost, X, params, inputs, lambdav=.1, max_iter=100):
+    def __init__(self, cost, X, params, inputs, model, lambdav=.1,
+                 max_iter=100):
         """Fista optimization using Theano
 
         cost: TODO
@@ -591,8 +592,8 @@ class Fista(object):
         L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
         invL = 1/float(L)
 
-        self.y = alloc_zeros_matrix(self.X.shape)
-        self.t = shared_scalar(1)
+        self.y = model.init((model.batch_size, model.input_dim
+        self.t = model.init((1,))
 
         x2 = self._proxOp(self.y-invL*self.grads, invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(self.t**2))/2.
