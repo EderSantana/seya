@@ -547,12 +547,12 @@ class SparseCodingFista(Layer):
 
         inputs = self.init((self.batch_size, self.input_dim))
         cost = T.sqr(inputs - T.dot(self.X, self.W)).sum()
-        self._fista = Fista(cost, self.X, self.W, inputs, self)
+        #self._fista = Fista(cost, self.X, self.W, inputs, self)
 
-    # def _fista(self, X):
-    #     Phi = self.W.get_value().T
-    #     Xnew = fista(X, Phi, max_iterations=self.n_steps).astype(floatX)
-    #     self.X.set_value(Xnew.T)
+    def _fista(self, X):
+         Phi = self.W.get_value().T
+         Xnew = fista(X, Phi, max_iterations=self.n_steps).astype(floatX)
+         self.X.set_value(Xnew.T)
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
