@@ -594,7 +594,7 @@ class Fista(object):
         self.y = alloc_zeros_matrix(self.X.shape)
         self.t = shared_scalar(1)
 
-        x2 = self._proxOp(y-invL*self.grads, invL*self.lambdav)
+        x2 = self._proxOp(self.y-invL*self.grads, invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(t**2))/2.
         self.updates.append((self.y, x2 + ((t-1)/t2)*(x2-x)))
         self.updates.append((self.X, x2))
