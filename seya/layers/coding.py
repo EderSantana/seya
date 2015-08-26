@@ -597,12 +597,13 @@ class Fista(object):
         self.invL.set_value(np.float32(1/L[0]))
 
         self.y = model.init((model.batch_size, model.output_dim))
+        self.y.set_value(self.X.get_value())
         self.t = shared_scalar(1)
 
-        x2 = self._proxOp(self.y-self.invL*self.grads, self.invL*self.lambdav)
+        x2 = self._proxOp(self.X-self.invL*self.grads, self.invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(self.t**2))/2.
-        self.updates.append((self.y, x2 + ((self.t-1)/t2)*(x2-self.X)))
-        self.updates.append((self.X, x2))
+        self.updates.append((self.X, x2 + ((self.t-1)/t2)*(x2-self.X)))
+        self.updates.append((self.y, x2))
         self.updates.append((self.t, t2))
 
         self.F = theano.function([], [], updates=self.updates,
