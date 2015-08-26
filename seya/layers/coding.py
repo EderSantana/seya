@@ -74,7 +74,7 @@ class SparseCoding(Layer):
         rec_error = T.sqr(inputs - outputs).sum()
         l1_norm = (self.gamma * diff_abs(x_t)).sum()
         l1_inov = diff_abs(x_t - prior).sum() * self.gamma / 10.
-        cost = rec_error # + l1_norm + l1_inov
+        cost = rec_error + l1_norm + l1_inov
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
         return x, new_accum_1, new_accum_2, outputs
 
