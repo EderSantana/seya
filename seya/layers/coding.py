@@ -7,7 +7,7 @@ import scipy.sparse.linalg
 from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
 from keras import activations, initializations
-from keras.utils.theano_utils import alloc_zeros_matrix
+from keras.utils.theano_utils import alloc_zeros_matrix, shared_scalar
 from keras.regularizers import l2
 
 from ..utils import diff_abs
