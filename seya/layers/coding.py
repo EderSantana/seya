@@ -25,9 +25,12 @@ def _RMSPropStep(cost, states, accum_1, accum_2):
 
     new_accum_1 = rho * accum_1 + (1 - rho) * grads**2
     new_accum_2 = momentum * accum_2 - lr * grads / T.sqrt(new_accum_1 + epsilon)
-    new_states = states + momentum * new_accum_2 - lr * (grads /
-                                                         T.sqrt(new_accum_1 + epsilon))
-    return new_states, new_accum_1, new_accum_2
+    denominator = T.sqrt(new_accum_1 + epsilon)
+    new_states = states + momentum * new_accum_2 - lr * (grads / denominator)
+
+    new_states_final = T.switch(T.lt(new_states, .1 * lr/denominator),
+                                new_states, 0)
+    return new_states_final, new_accum_1, new_accum_2
 
 
 class SparseCoding(Layer):
@@ -73,7 +76,7 @@ class SparseCoding(Layer):
         l1_inov = diff_abs(x_t - prior).sum() * self.gamma / 10.
         cost = rec_error # + l1_norm + l1_inov
         x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
-        return T.switch(T.lt(x, .0001), x, 0) , new_accum_1, new_accum_2, outputs
+        return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train=False, prior=0.):
         initial_states = self.get_initial_states(inputs)
