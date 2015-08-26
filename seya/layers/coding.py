@@ -639,6 +639,7 @@ def fista(I, Phi, lambdav=.1, max_iterations=150, display=False):
 
     L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
     invL = 1/float(L)
+    print invL
 
     y = x
     t = 1
