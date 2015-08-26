@@ -604,7 +604,7 @@ class Fista(object):
         self.F = theano.function([], [], updates=self.updates,
                                  allow_input_downcast=True)
 
-    def optimize(x_batch):
+    def optimize(self, x_batch):
         self.inputs.set_value(x_batch.astype(floatX))
         for i in self.max_iter:
             self.F()
