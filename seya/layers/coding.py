@@ -584,7 +584,7 @@ class Fista(object):
         self.lambdav = lambdav
         self.max_iter = max_iter
         self.X = X
-        self.grads = T.grad(cost, params)
+        self.grads = T.grad(cost, X)
         self.updates = []
 
         Phi = params.get_value().T
