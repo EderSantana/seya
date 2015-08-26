@@ -592,7 +592,7 @@ class Fista(object):
         L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
         invL = 1/float(L)
 
-        self.y = model.init((model.batch_size, model.input_dim
+        self.y = model.init((model.batch_size, model.input_dim))
         self.t = model.init((1,))
 
         x2 = self._proxOp(self.y-invL*self.grads, invL*self.lambdav)
