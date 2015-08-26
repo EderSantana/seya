@@ -602,7 +602,7 @@ class Fista(object):
 
         x2 = self._proxOp(self.X-self.invL*self.grads, self.invL*self.lambdav)
         t2 = .5 + T.sqrt(1+4*(self.t**2))/2.
-        self.updates.append((self.X, x2 + ((self.t-1)/t2)*(x2-self.X)))
+        self.updates.append((self.X, x2 + ((self.t-1)/t2)*(x2-self.y)))
         self.updates.append((self.y, x2))
         self.updates.append((self.t, t2))
 
