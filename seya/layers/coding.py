@@ -1,5 +1,8 @@
 import theano
 import theano.tensor as T
+import numpy as np
+import math
+import scipy.sparse.linalg
 
 from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
@@ -84,7 +87,6 @@ class SparseCoding(Layer):
 
         outs = outputs[0][-1]
         if self.return_reconstruction:
-            #return outputs[-1][-1]
             return T.dot(outs, self.W)
         else:
             return outs
@@ -510,7 +512,8 @@ class Matrix(Layer):
                  activation='linear',
                  truncate_gradient=-1,
                  gamma=.1,
-                 n_steps=10,
+                 n_steps=100,
+                 batch_size=100,
                  return_reconstruction=False,
                  W_regularizer=l2(.01),
                  activity_regularizer=None):
@@ -524,10 +527,11 @@ class Matrix(Layer):
         self.truncate_gradient = truncate_gradient
         self.activation = activations.get(activation)
         self.return_reconstruction = return_reconstruction
+        self.batch_size = batch_size
         self.input = T.matrix()
 
         self.W = self.init((self.output_dim, self.input_dim))
-        self.X = self.init((100, output_dim)) # 100 = batch size
+        self.X = self.init((batch_size, output_dim))
         self.params = [self.W, ]
 
         self.regularizers = []
@@ -540,7 +544,7 @@ class Matrix(Layer):
 
     def _fista(self, X):
         Phi = self.W.get_value().T
-        Xnew = fista(X, Phi, max_iterations=100).astype('float32')
+        Xnew = fista(X, Phi, max_iterations=self.n_steps).astype(floatX)
         self.X.set_value(Xnew.T)
 
     def get_initial_states(self, X):
@@ -569,41 +573,33 @@ class Matrix(Layer):
                 "return_reconstruction": self.return_reconstruction}
 
 
-import numpy as np
-import math
-import scipy.sparse as sps
-import scipy.sparse.linalg
-import time
-
 def fista(I, Phi, lambdav=.1, max_iterations=150, display=False):
-  """ FISTA Inference for Lasso (l1) Problem
-  I: Batches of images (dim x batch)
-  Phi: Dictionary (dim x dictionary element) (nparray or sparse array)
-  lambdav: Sparsity penalty
-  max_iterations: Maximum number of iterations
-  """
-  def proxOp(x,t):
-    """ L1 Proximal Operator """
-    return np.fmax(x-t, 0) + np.fmin(x+t, 0)
+    """ FISTA Inference for Lasso (l1) Problem
+    I: Batches of images (dim x batch)
+    Phi: Dictionary (dim x dictionary element) (nparray or sparse array)
+    lambdav: Sparsity penalty
+    max_iterations: Maximum number of iterations
+    """
+    def proxOp(x, t):
+        """ L1 Proximal Operator """
+        return np.fmax(x-t, 0) + np.fmin(x+t, 0)
 
-  x = np.zeros((Phi.shape[1], I.shape[1]))
-  Q = Phi.T.dot(Phi)
-  c = -2*Phi.T.dot(I)
+    x = np.zeros((Phi.shape[1], I.shape[1]))
+    Q = Phi.T.dot(Phi)
+    c = -2*Phi.T.dot(I)
 
-  L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
-  invL = 1/float(L)
+    L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+    invL = 1/float(L)
 
-  y = x
-  t = 1
+    y = x
+    t = 1
 
-  for i in range(max_iterations):
-    g = 2*Q.dot(y) + c
-    x2 = proxOp(y-invL*g,invL*lambdav)
-    t2 = (1+math.sqrt(1+4*(t**2)))/2.0
-    y = x2 + ((t-1)/t2)*(x2-x)
-    x = x2
-    t = t2
-    if display == True:
-      print "L1 Objective " +  str(np.sum((I-Phi.dot(x2))**2) + lambdav*np.sum(np.abs(x2)))
+    for i in range(max_iterations):
+        g = 2*Q.dot(y) + c
+        x2 = proxOp(y-invL*g, invL*lambdav)
+        t2 = (1+math.sqrt(1+4*(t**2)))/2.0
+        y = x2 + ((t-1)/t2)*(x2-x)
+        x = x2
+        t = t2
 
-  return x2
+    return x2
