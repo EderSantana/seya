@@ -606,8 +606,8 @@ class Fista(object):
     def optimize(self, x_batch):
         Phi = self.params.get_value().T
         Q = Phi.T.dot(Phi)
-        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0].astype(floatX)
-        self.invL.set_value(1/np.float32(L[0]))
+        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+        self.invL.set_value(np.float32(1/L[0]))
         self.inputs.set_value(x_batch.astype(floatX))
         for i in range(self.max_iter):
             self.F()
