@@ -542,26 +542,21 @@ class SparseCodingFista(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-    def _fista(self, X):
-        Phi = self.W.get_value().T
-        Xnew = fista(X, Phi, max_iterations=self.n_steps).astype(floatX)
-        self.X.set_value(Xnew.T)
+        inputs = self.init((self.batch_size, self.input_dim))
+        cost = T.sqr(inputs - T.dot(self.X, self.W)).sum()
+        self._fista = Fista(cost, self.X, self.W, self.inputs)
 
-    def get_initial_states(self, X):
-        return alloc_zeros_matrix(X.shape[0], self.output_dim)
-
-    def _step(self, x_t, accum_1, accum_2, inputs, prior):
-        outputs = self.activation(T.dot(x_t, self.W))
-        rec_error = T.sqr(inputs - outputs).sum()
-        l1_norm = (self.gamma * diff_abs(x_t)).sum()
-        l1_inov = diff_abs(x_t - prior).sum() * self.gamma / 10.
-        cost = rec_error + l1_norm + l1_inov
-        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
-        return x, new_accum_1, new_accum_2, outputs
+    # def _fista(self, X):
+    #     Phi = self.W.get_value().T
+    #     Xnew = fista(X, Phi, max_iterations=self.n_steps).astype(floatX)
+    #     self.X.set_value(Xnew.T)
 
     def get_output(self, train=False):
         inputs = self.get_input(train)
-        return T.dot(self.X, self.W) + inputs.sum()*0
+        if self.return_reconstruction:
+            return T.dot(self.X, self.W) + inputs.sum()*0
+        else:
+            return self.X + inputs.sum()*0
 
     def get_config(self):
         return {"name": self.__class__.__name__,
@@ -569,11 +564,55 @@ class SparseCodingFista(Layer):
                 "output_dim": self.output_dim,
                 "init": self.init.__name__,
                 "activation": self.activation.__name__,
-                "truncate_gradient": self.truncate_gradient,
                 "return_reconstruction": self.return_reconstruction}
 
 
-def fista(I, Phi, lambdav=.1, max_iterations=150, display=False):
+class Fista(object):
+    def __init__(self, cost, X, params, inputs, lambdav=.1, max_iter=100):
+        """Fista optimization using Theano
+
+        cost: TODO
+        params: TODO
+        lambdav: TODO
+        max_iter: TODO
+
+        """
+        self.inputs
+        self.cost = cost
+        self.params = params
+        self.lambdav = lambdav
+        self.max_iter = max_iter
+        self.X = X
+        self.grads = T.grad(cost, params)
+        self.updates = []
+
+        Phi = params.get_value().T
+        Q = Phi.T.dot(Phi)
+        L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+        invL = 1/float(L)
+
+        self.y = alloc_zeros_matrix(self.X.shape)
+        self.t = shared_scalar(1)
+
+        x2 = self._proxOp(y-invL*self.grads, invL*self.lambdav)
+        t2 = .5 + T.sqrt(1+4*(t**2))/2.
+        self.updates.append((self.y, x2 + ((t-1)/t2)*(x2-x))
+        self.updates.append((self.X, x2))
+        self.updates.append((t, t2))
+
+        self.F = theano.function([], [], updates=self.updates,
+                                 allow_input_downcast=True)
+
+    def optimize(x_batch):
+        self.inputs.set_value(x_batch.astype(floatX))
+        for i in self.max_iter:
+            self.F()
+
+    def _proxOp(self, x, t):
+        return T.maximum(x-t, 0) + T.minimum(x+t, 0)
+
+
+def fista(cost, params, Phi, lambdav=.1, max_iterations=150, display=False):
     """ FISTA Inference for Lasso (l1) Problem
     I: Batches of images (dim x batch)
     Phi: Dictionary (dim x dictionary element) (nparray or sparse array)
