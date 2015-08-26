@@ -577,7 +577,7 @@ class Fista(object):
         max_iter: TODO
 
         """
-        self.inputs
+        self.inputs = inputs
         self.cost = cost
         self.params = params
         self.lambdav = lambdav
