@@ -8,7 +8,7 @@ class RenormalizeWeight(Callback):
         self.W = W
         self.W_shape = self.W.get_value().shape
 
-    def on_batch_start(self, batch, logs={}):
+    def on_batch_begin(self, batch, logs={}):
         W = self.W.get_value()
         if self.W_shape == 4:
             W = W.reshape((self.W_shape[0], -1))

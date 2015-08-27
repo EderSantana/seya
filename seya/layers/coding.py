@@ -2,12 +2,11 @@ import theano
 import theano.tensor as T
 import numpy as np
 import math
-import scipy.sparse.linalg
 
 from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
 from keras import activations, initializations
-from keras.utils.theano_utils import alloc_zeros_matrix, shared_scalar
+from keras.utils.theano_utils import alloc_zeros_matrix, shared_scalar, sharedX
 from keras.regularizers import l2
 
 from ..utils import diff_abs
@@ -19,18 +18,11 @@ def _proxOp(x, t):
     return T.maximum(x-t, 0) + T.minimum(x+t, 0)
 
 
-def _FistaStep(cost, states, y, t):
-    lr = .001 # suggest not to change this
-    lambdav = .1
-
+def _IstaStep(cost, states, lr=.001, lambdav=.1):
     grads = T.grad(cost, states)
 
-    x2 = _proxOp(states-lr*grads, lr*lambdav)
-    t2 = .5 + T.sqrt(1+4*(t**2))/2.
-    new_y = x2 + ((t-1)/t2)*(x2-states)
-    new_states =  x2
-    new_t = t2
-    return new_states, new_y, new_t
+    new_states = _proxOp(states-lr*grads, lr*lambdav)
+    return theano.gradient.disconnected_grad(new_states)
 
 
 def _RMSPropStep(cost, states, accum_1, accum_2):
@@ -45,10 +37,10 @@ def _RMSPropStep(cost, states, accum_1, accum_2):
     new_accum_2 = momentum * accum_2 - lr * grads / T.sqrt(new_accum_1 + epsilon)
     denominator = T.sqrt(new_accum_1 + epsilon)
     new_states = states + momentum * new_accum_2 - lr * (grads / denominator)
-
-    new_states_final = T.switch(T.lt(new_states, .1 * lr/denominator),
-                                new_states, 0)
-    return new_states_final, new_accum_1, new_accum_2
+    new_states = _proxOp(states - lr * (grads / denominator),
+                         .1*lr/denominator) + momentum * new_accum_2
+    return (theano.gradient.disconnected_grad(new_states),
+            new_accum_1, new_accum_2)
 
 
 class SparseCoding(Layer):
@@ -59,7 +51,7 @@ class SparseCoding(Layer):
                  gamma=.1,
                  n_steps=10,
                  return_reconstruction=False,
-                 W_regularizer=l2(.01),
+                 W_regularizer=None,
                  activity_regularizer=None):
 
         super(SparseCoding, self).__init__()
@@ -87,23 +79,18 @@ class SparseCoding(Layer):
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.output_dim)
 
-    def _step(self, x_t, accum_1, accum_2, inputs, prior, W):
+    def _step(self, x_t, inputs, prior, W):
         outputs = self.activation(T.dot(x_t, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
-        l1_norm = (self.gamma * diff_abs(x_t)).sum()
-        l1_inov = diff_abs(x_t - prior).sum() * self.gamma / 10.
-        cost = rec_error # + l1_norm + l1_inov
-        # x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
-        x, new_accum_1, new_accum_2 = _FistaStep(cost, x_t, accum_1, accum_2)
-
-        return x, new_accum_1, new_accum_2, outputs
+        x = _IstaStep(rec_error, x_t, lambdav=self.gamma)
+        return x, outputs
 
     def _get_output(self, inputs, train=False, prior=0.):
         initial_states = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
-            outputs_info=[initial_states, ]*2 + [shared_scalar(1), None, ],
+            outputs_info=[initial_states, None],
             non_sequences=[inputs, prior, self.W],
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
@@ -134,7 +121,7 @@ class VarianceCoding(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 W_regularizer=l2(.01),
+                 W_regularizer=None,
                  activity_regularizer=None):
 
         super(VarianceCoding, self).__init__()
@@ -163,7 +150,6 @@ class VarianceCoding(Layer):
 
     def _step(self, x_t, accum_1, accum_2, inputs, prior):
         outputs = self.activation(T.dot(x_t, self.W))
-        # rec_error = T.sqr(inputs - outputs).sum()
         l1_norm = self.gamma * outputs * diff_abs(inputs)
         own_norm = (diff_abs(x_t)).sum() * self.gamma
         l1_inov = T.sqr(x_t - prior).sum() * self.gamma / 10.
@@ -177,7 +163,7 @@ class VarianceCoding(Layer):
             self._step,
             sequences=[],
             outputs_info=[initial_states, ]*3 + [None, None],
-            non_sequences=[inputs, prior],
+            non_sequences=[inputs, prior] + self.params,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
         return outputs[-1][-1]
@@ -205,9 +191,9 @@ class Sparse2L(Layer):
                  truncate_gradient=-1,
                  gamma=.1,
                  n_steps=10,
-                 return_mode='states',
-                 W_regularizer=l2(.01),
-                 V_regularizer=l2(.01),
+                 return_mode='all',
+                 W_regularizer=None,
+                 V_regularizer=None,
                  activity_regularizer=None):
 
         super(Sparse2L, self).__init__()
@@ -223,7 +209,9 @@ class Sparse2L(Layer):
         self.input = T.matrix()
 
         self.W = self.init((self.output_dim, self.input_dim))
-        self.V = self.init((self.causes_dim, self.output_dim))
+        self.V = sharedX(np.random.uniform(low=0, high=.1,
+                                           size=(self.causes_dim,
+                                                 self.output_dim)))
         self.params = [self.W, self.V]
 
         self.regularizers = []
@@ -236,36 +224,33 @@ class Sparse2L(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-    def get_initial_states(self, X):
-        return (alloc_zeros_matrix(X.shape[0], self.output_dim),
-                alloc_zeros_matrix(X.shape[0], self.causes_dim))
+    def get_initial_states(self, inputs):
+        return (alloc_zeros_matrix(inputs.shape[0], self.output_dim),
+                alloc_zeros_matrix(inputs.shape[0], self.causes_dim))
 
-    def _step(self, x_tm1, accum_1, accum_2,
-              u_tm1, accum_1_u, accum_2_u,
-              inputs, prior, *args):
+    def _step(self, x_tm1, u_tm1, inputs, prior, *args):
         outputs = self.activation(T.dot(x_tm1, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
         causes = (1 + T.exp(-T.dot(u_tm1, self.V))) * .5
-        l1_norm = (self.gamma * causes * diff_abs(x_tm1)).sum()
-        l1_inov = diff_abs(x_tm1 - prior).sum() * self.gamma / 10.
-        # causes_norm = diff_abs(u_tm1).sum() * self.gamma / 10.
-        cost = rec_error + l1_norm + l1_inov  # + causes_norm
-        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_tm1, accum_1,
-                                                   accum_2)
-        u, new_accum_1_u, new_accum_2_u = _RMSPropStep(cost, u_tm1, accum_1_u,
-                                                       accum_2_u)
-        return (x, new_accum_1, new_accum_2, u, new_accum_1_u, new_accum_2_u,
-                outputs)
+        x = _IstaStep(rec_error, x_tm1, lambdav=self.gamma*causes)
+        u_cost = causes * x * self.gamma
+        u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma)
+        return (x, u, outputs)
 
     def _get_output(self, inputs, train=False, prior=0.):
         x_init, u_init = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
-            outputs_info=[x_init]*3 + [u_init]*3 + [None, ],
+            outputs_info=[x_init, u_init, None],
             non_sequences=[inputs, prior] + self.params,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
+
+        x = outputs[0][-1]
+        u = outputs[1][-1]
+        causes = (1 + T.exp(-T.dot(u, self.V))) * .5
+        u_cost = (self.gamma * causes * x).sum(axis=-1, keepdims=True)
 
         if self.return_mode == 'rec':
             return outputs[-1][-1]
@@ -273,6 +258,10 @@ class Sparse2L(Layer):
             return outputs[0][-1]
         elif self.return_mode == 'causes':
             return outputs[3][-1]
+        elif self.return_mode == 'all':
+            return [outputs[0][-1], outputs[1][-1], outputs[2][-1],
+                    u_cost]
+
         else:
             raise ValueError
 
@@ -295,7 +284,8 @@ class ConvSparseCoding(Layer):
                  input_row, input_col,
                  init='glorot_uniform', activation='linear', weights=None,
                  border_mode='valid', subsample=(1, 1),
-                 W_regularizer=l2(.01), activity_regularizer=None,
+                 W_regularizer=None,
+                 activity_regularizer=None,
                  return_reconstruction=False, n_steps=10, truncate_gradient=-1,
                  gamma=0.1):
 
@@ -339,14 +329,15 @@ class ConvSparseCoding(Layer):
         return alloc_zeros_matrix(X.shape[0], self.stack_size,
                                   self.code_row, self.code_col)
 
-    def _step(self, x_t, accum_1, accum_2, inputs):
+    def _step(self, x_t, accum_1, accum_2, inputs, *args):
         conv_out = T.nnet.conv.conv2d(x_t, self.W, border_mode=self.border_mode,
                                       subsample=self.subsample)
         outputs = self.activation(conv_out)
         rec_error = T.sqr(inputs - outputs).sum()
-        l1_norm = (self.gamma * diff_abs(x_t)).sum()
-        cost = rec_error + l1_norm
-        x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
+        # l1_norm = (self.gamma * diff_abs(x_t)).sum()
+        cost = rec_error  # + l1_norm
+        # x, new_accum_1, new_accum_2 = _RMSPropStep(cost, x_t, accum_1, accum_2)
+        x, new_accum_1, new_accum_2 = _IstaStep(cost, x_t, accum_1, accum_2)
         return x, new_accum_1, new_accum_2, outputs
 
     def _get_output(self, inputs, train):
@@ -354,8 +345,9 @@ class ConvSparseCoding(Layer):
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
-            outputs_info=[initial_states, ]*3 + [None, ],
-            non_sequences=inputs,
+            # outputs_info=[initial_states, ]*3 + [None, ],
+            outputs_info=[initial_states, ]*2 + [shared_scalar(1), None],
+            non_sequences=[inputs, ] + self.params,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
@@ -374,7 +366,8 @@ class ConvSparse2L(Layer):
                  input_row, input_col,
                  init='glorot_uniform', activation='linear', weights=None,
                  border_mode='valid', subsample=(1, 1),
-                 W_regularizer=l2(.001), V_regularizer=l2(.001),
+                 W_regularizer=None,
+                 V_regularizer=None,
                  activity_regularizer=None,
                  return_reconstruction=False, n_steps=10, truncate_gradient=-1,
                  gamma=0.1):
@@ -655,9 +648,9 @@ def fista(I, Phi, lambdav=.1, max_iterations=150, display=False, invL=1e-4):
     Q = Phi.T.dot(Phi)
     c = -2*Phi.T.dot(I)
 
-    #L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
-    #invL = 1/float(L)
-    #print invL
+    # L = scipy.sparse.linalg.eigsh(2*Q, 1, which='LM')[0]
+    # invL = 1/float(L)
+    # print invL
 
     y = x
     t = 1

@@ -1,6 +1,10 @@
 import theano.tensor as T
 
 
+def sum_mse(y_true, y_pred):
+    return T.sqr(y_true - y_pred).sum()
+
+
 def gaussianKL(dumb, y_pred):
     # Assumes: y_pred = T.concatenate([mean, logsigma], axis=-1)
     dim = y_pred.shape[1] / 2
