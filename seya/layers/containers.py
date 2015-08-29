@@ -2,9 +2,11 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import theano.tensor as T
-import theano.scan as scan
+from theano import scan
 from keras.layers.core import Layer, Merge
 from keras.utils.theano_utils import ndim_tensor, alloc_zeros_matrix
+
+from ..utils import apply_model
 
 
 class Recursive(Layer):
@@ -29,7 +31,8 @@ class Recursive(Layer):
         self.inputs = {}  # layer-like
         self.input_order = []  # strings
         self.states = {}  # theano.tensors
-        self.states_order = {}  # strings
+        self.state_order = []  # strings
+        self.initial_states = []
         self.outputs = {}  # layer-like
         self.output_order = []  # strings
         self.input_config = []  # dicts
@@ -112,7 +115,7 @@ class Recursive(Layer):
             raise Exception('Duplicate node identifier: ' + name)
         self.namespace.add(name)
         self.state_order.append(name)
-        batch_size = self.inputs[0].get_input().shape[0]
+        batch_size = self.input.values()[0].shape[0]
         self.states[name] = alloc_zeros_matrix(batch_size, dim)
         self.state_config.append({'name': name, 'dim': dim})
 
@@ -121,7 +124,7 @@ class Recursive(Layer):
         if return_state is None:
             self.initial_states.append(None)
         else:
-            self.initial_states.appned(self.states[return_state])
+            self.initial_states.append(self.states[return_state])
 
         if hasattr(layer, 'set_name'):
             layer.set_name(name)
@@ -142,10 +145,12 @@ class Recursive(Layer):
                     to_merge.append(self.nodes[n])
                 elif n in self.inputs:
                     to_merge.append(self.inputs[n])
+                elif n in self.states:
+                    to_merge.append(self.states[n])
                 else:
                     raise Exception('Unknown identifier: ' + n)
-            merge = Merge(to_merge, mode=merge_mode)
-            layer.set_previous(merge)
+            #merge = Merge(to_merge, mode=merge_mode)
+            #layer.set_previous(merge)
             layer.input_names = inputs
 
         self.namespace.add(name)
