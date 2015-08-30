@@ -6,7 +6,7 @@ from theano import scan
 from keras.layers.core import Layer, Merge
 from keras.utils.theano_utils import ndim_tensor, alloc_zeros_matrix
 
-from ..utils import apply_model
+from ..utils import apply_layer
 
 
 class Recursive(Layer):
@@ -25,7 +25,8 @@ class Recursive(Layer):
             - get_weights
             - set_weights
     '''
-    def __init__(self):
+    def __init__(self, truncate_gradient=-1):
+        self.truncate_gradient = truncate_gradient
         self.namespace = set()  # strings
         self.nodes = {}  # layer-like
         self.inputs = {}  # layer-like
@@ -39,6 +40,7 @@ class Recursive(Layer):
         self.state_config = []  # dicts
         self.output_config = []  # dicts
         self.node_config = []  # dicts
+        self.state_map = {}
 
         self.params = []
         self.regularizers = []
@@ -93,7 +95,7 @@ class Recursive(Layer):
         else:
             return dict([(k, o) for k, o in zip(self.outputs.keys(), outputs)])
 
-    def add_input(self, name, ndim=2, dtype='float'):
+    def add_input(self, name, ndim=3, dtype='float'):
         if name in self.namespace:
             raise Exception('Duplicate node identifier: ' + name)
         self.namespace.add(name)
@@ -115,8 +117,12 @@ class Recursive(Layer):
             raise Exception('Duplicate node identifier: ' + name)
         self.namespace.add(name)
         self.state_order.append(name)
-        batch_size = self.input.values()[0].shape[0]
-        self.states[name] = alloc_zeros_matrix(batch_size, dim)
+        inps = self.input
+        if isinstance(inps, dict):
+            batch_size = inps.values()[0].shape[0]
+        else:
+            batch_size = inps.shape[0]
+        self.states[name] = T.unbroadcast(alloc_zeros_matrix(batch_size, dim), 1)
         self.state_config.append({'name': name, 'dim': dim})
 
     def add_node(self, layer, name, input=None, inputs=[], merge_mode='concat',
@@ -125,6 +131,8 @@ class Recursive(Layer):
             self.initial_states.append(None)
         else:
             self.initial_states.append(self.states[return_state])
+            self.state_map[return_state] = name
+            layer.state_name = return_state
 
         if hasattr(layer, 'set_name'):
             layer.set_name(name)
@@ -146,11 +154,12 @@ class Recursive(Layer):
                 elif n in self.inputs:
                     to_merge.append(self.inputs[n])
                 elif n in self.states:
-                    to_merge.append(self.states[n])
+                    # to_merge.append(self.states[n])
+                    pass
                 else:
                     raise Exception('Unknown identifier: ' + n)
-            #merge = Merge(to_merge, mode=merge_mode)
-            #layer.set_previous(merge)
+            # merge = Merge(to_merge, mode=merge_mode)
+            # layer.set_previous(merge)
             layer.input_names = inputs
 
         self.namespace.add(name)
@@ -175,25 +184,49 @@ class Recursive(Layer):
 
     def _step(self, *args):
         local_outputs = {}
-        for node in self.nodes:
+        for k, node in self.nodes.items():
+            print('This is node {}'.format(k))
             local_inputs = []
             for inp in node.input_names:
-                idx = self.input_order.index(inp)
-                local_inputs.append(args[idx])
-                local_inputs.appned(local_outputs[inp])
-            for st in node.state_names:
-                idx = self.states_order.index(st) + len(self.input_order)
-                local_inputs.append(args[idx])
-            inputs = T.concatenate(local_inputs, axis=-1)
-            local_outputs[node] = self.nodes._get_output(inputs)
+                print('>>> input {}'.format(inp))
+                if inp in self.input_order:
+                    idx = self.input_order.index(inp)
+                    local_inputs.append(args[idx])
+                elif inp in local_outputs:
+                    print('??? output {}'.format(inp))
+                    local_inputs.append(local_outputs[inp])
+                elif k == self.state_map.get(inp):
+                    idx = self.state_order.index(inp) + len(self.input_order)
+                    print('!!! state {0}, idx {1}'.format(inp, idx))
+                    local_inputs.append(args[idx])
+            # try:
+            #     st = node.state_name
+            #     idx = self.state_order.index(st) + len(self.input_order)
+            #     print('!!! state {0}, idx {1}'.format(st, idx))
+            #     local_inputs.append(args[idx])
+            # except: # non-stateful layer
+            #     pass
+            local_inputs = [x for x in local_inputs if x != [[]]]
+            print(local_inputs)
+            if len(local_inputs) > 1:
+                inputs = T.concatenate(local_inputs, axis=-1)
+            else:
+                inputs = local_inputs[0]
+            print('After concat {}'.format(inputs))
+            local_outputs[k] = apply_layer(node, inputs)
 
-        return local_outputs.items()
+        return local_outputs.values()
 
     def _get_output(self, train=False):
+        I = self.get_input()
+        if isinstance(I, dict):
+            X = [x.dimshuffle(1, 0, 2) for x in I.values()]
+        else:
+            X = I.dimshuffle(1, 0, 2)
         outputs, updates = scan(self._step,
-                                sequences=self.get_input(),
+                                sequences=X,
                                 outputs_info=self.initial_states,
-                                non_sequences=self.parmas + self.get_constants(),
+                                non_sequences=self.params + self.get_constants(),
                                 truncate_gradient=self.truncate_gradient
                                 )
         return outputs
@@ -231,3 +264,10 @@ class Recursive(Layer):
                 "input_order": self.input_order,
                 "output_order": self.output_order,
                 "nodes": dict([(c["name"], self.nodes[c["name"]].get_config()) for c in self.node_config])}
+
+
+def _dict_get(dic, key):
+    if dic.get(key) is None:
+        return list()
+    else:
+        return dic.get(key)

@@ -1,5 +1,23 @@
 import numpy as np
 import theano.tensor as tensor
+from keras.layers.core import Activation
+
+
+def apply_layer(layer, X):
+    flag = False
+    try:
+        tmp = layer.input
+        flag = True
+    except:
+        pass
+    if isinstance(layer, Activation):
+        return layer.activation(X)
+    else:
+        layer.input = X
+        Y = layer.get_output()
+        if flag:
+            layer.input = tmp
+        return Y
 
 
 def apply_model(model, X):
