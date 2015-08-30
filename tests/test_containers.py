@@ -15,19 +15,21 @@ class TestRecursive(unittest.TestCase):
         super(TestRecursive, self).__init__(*args, **kwargs)
         self.input_dim = 2
         self.state_dim = 2
-        self.model = Recursive()
+        self.model = Recursive(return_sequences=True)
         self.model.add_input('input', ndim=3)  # Input is 3D tensor
         self.model.add_state('h', dim=self.state_dim)
         self.model.add_node(Dense(self.input_dim + self.state_dim, self.state_dim,
                                   init='one'), name='rec',
                             inputs=['input', 'h'],
                             return_state='h')
-        self.model.add_node(Activation('tanh'), name='out', input='rec',
+        self.model.add_node(Activation('linear'), name='out', input='rec',
                             create_output=True)
 
         self.model2 = Sequential()
-        self.model2.add(SimpleRNN(input_dim=self.input_dim, activation='tanh',
-                                  output_dim=self.state_dim, init='one'))
+        self.model2.add(SimpleRNN(input_dim=self.input_dim, activation='linear',
+                                  inner_init='one',
+                                  output_dim=self.state_dim, init='one',
+                                  return_sequences=True))
 
     def test_step(self):
         XX = T.matrix()
@@ -38,14 +40,14 @@ class TestRecursive(unittest.TestCase):
         h = np.ones((1, 2))
         y = F(x, h)
         r = np.asarray([[4., 4.]])
-        assert_allclose([r, np.tanh(r)], y)
+        assert_allclose([r, r], y)
 
     def test_get_get_output(self):
         X = self.model.get_input()
         Y = self.model._get_output()
         F = function([X], Y, allow_input_downcast=True)
 
-        x = np.ones((3, 5, 2))
+        x = np.ones((3, 5, self.input_dim))
         y = F(x)
         print y
 

@@ -25,7 +25,8 @@ class Recursive(Layer):
             - get_weights
             - set_weights
     '''
-    def __init__(self, truncate_gradient=-1):
+    def __init__(self, truncate_gradient=-1, return_sequences=False):
+        self.return_sequences = return_sequences
         self.truncate_gradient = truncate_gradient
         self.namespace = set()  # strings
         self.nodes = {}  # layer-like
@@ -229,6 +230,7 @@ class Recursive(Layer):
                                 non_sequences=self.params + self.get_constants(),
                                 truncate_gradient=self.truncate_gradient
                                 )
+        outputs = [x.dimshuffle(1, 0, 2) if self.return_sequences else x[-1] for x in outputs]
         return outputs
 
     def add_output(self, name, input=None, inputs=[], merge_mode='concat'):
