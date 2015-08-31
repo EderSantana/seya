@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import theano.tensor as T
+from collections import OrderedDict
 from theano import scan
 from keras.layers.core import Layer, Merge
 from keras.utils.theano_utils import ndim_tensor, alloc_zeros_matrix
@@ -29,10 +30,10 @@ class Recursive(Layer):
         self.return_sequences = return_sequences
         self.truncate_gradient = truncate_gradient
         self.namespace = set()  # strings
-        self.nodes = {}  # layer-like
-        self.inputs = {}  # layer-like
+        self.nodes = OrderedDict()  # layer-like
+        self.inputs = OrderedDict()  # layer-like
         self.input_order = []  # strings
-        self.states = {}  # theano.tensors
+        self.states = OrderedDict()  # theano.tensors
         self.state_order = []  # strings
         self.initial_states = []
         self.outputs = {}  # layer-like
@@ -163,6 +164,8 @@ class Recursive(Layer):
             # layer.set_previous(merge)
             layer.input_names = inputs
 
+        layer.input_list = inputs if input is None else [input, ]
+        layer.merge_mode = merge_mode
         self.namespace.add(name)
         self.nodes[name] = layer
         self.node_config.append({'name': name,
@@ -184,7 +187,8 @@ class Recursive(Layer):
         return []
 
     def _step(self, *args):
-        local_outputs = {}
+        print('--- {}'.format(args))
+        local_outputs = OrderedDict()
         for k, node in self.nodes.items():
             print('This is node {}'.format(k))
             local_inputs = []
@@ -193,30 +197,34 @@ class Recursive(Layer):
                 if inp in self.input_order:
                     idx = self.input_order.index(inp)
                     local_inputs.append(args[idx])
+                    print('iii idx: {}'.format(idx))
                 elif inp in local_outputs:
                     print('??? output {}'.format(inp))
                     local_inputs.append(local_outputs[inp])
-                elif k == self.state_map.get(inp):
-                    idx = self.state_order.index(inp) + len(self.input_order)
+                elif inp in node.input_list:  # state input
+                    idx = len(self.input_order) + self.state_order.index(inp)
                     print('!!! state {0}, idx {1}'.format(inp, idx))
                     local_inputs.append(args[idx])
-            # try:
-            #     st = node.state_name
-            #     idx = self.state_order.index(st) + len(self.input_order)
-            #     print('!!! state {0}, idx {1}'.format(st, idx))
-            #     local_inputs.append(args[idx])
-            # except: # non-stateful layer
-            #     pass
-            local_inputs = [x for x in local_inputs if x != [[]]]
+            local_inputs = [x for x in local_inputs if x != []]
             print(local_inputs)
             if len(local_inputs) > 1:
-                inputs = T.concatenate(local_inputs, axis=-1)
+                if node.merge_mode == 'concat':
+                    inputs = T.concatenate(local_inputs, axis=-1)
+                elif node.merge_mode == 'sum':
+                    inputs = sum(local_inputs)
             else:
                 inputs = local_inputs[0]
             print('After concat {}'.format(inputs))
             local_outputs[k] = apply_layer(node, inputs)
+            print('local outputs: {}'.format(local_outputs))
 
-        return local_outputs.values()
+        print('+++ {}'.format(local_outputs.values()))
+        out_vals = []
+        for k, v in local_outputs.items():
+            print('key: {}'.format(k))
+            out_vals.append(v)
+        # return local_outputs.values()
+        return out_vals
 
     def _get_output(self, train=False):
         I = self.get_input()
@@ -224,6 +232,8 @@ class Recursive(Layer):
             X = [x.dimshuffle(1, 0, 2) for x in I.values()]
         else:
             X = I.dimshuffle(1, 0, 2)
+        print('=='*10)
+        print('*** {}'.format(self.initial_states))
         outputs, updates = scan(self._step,
                                 sequences=X,
                                 outputs_info=self.initial_states,

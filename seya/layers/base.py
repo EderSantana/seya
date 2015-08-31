@@ -11,8 +11,9 @@ floatX = theano.config.floatX
 
 
 class Lambda(MaskedLayer):
-    def __init__(self, func):
+    def __init__(self, func, ndim=2):
         super(Lambda, self).__init__()
+        self.input = ndim_tensor(ndim)
         self.func = func
 
     def get_output(self, train=False):
@@ -166,3 +167,16 @@ class OrthogonalDense(Dense):
         X = self.get_input(train)
         A = self._get_rotation()
         return T.dot(X, A)
+
+
+class Dense2(Dense):
+    '''
+        Just your regular fully connected NN layer.
+    '''
+    def __init__(self, *args, **kwargs):
+
+        super(Dense2, self).__init__(*args, **kwargs)
+
+    def _get_output(self, X):
+        output = self.activation(T.dot(X, self.W) + self.b)
+        return output
