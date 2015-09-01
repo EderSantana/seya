@@ -3,6 +3,9 @@ import theano.tensor as T
 import numpy as np
 import math
 
+from theano.tensor.shared_randomstreams import RandomStreams
+srng = RandomStreams(seed=234)
+
 from theano.tensor.signal.downsample import max_pool_2d
 from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
@@ -32,7 +35,8 @@ def _IstaStep(cost, states, lr=.001, lambdav=.1, prior=0):
     if prior != 0:
         new_x += lambdav*lr*.1*_proxInnov(states, prior)
     new_states = _proxOp(states-lr*grads, lr*lambdav)
-    return theano.gradient.disconnected_grad(new_states)
+    # return theano.gradient.disconnected_grad(new_states)
+    return new_states
 
 
 def _RMSPropStep(cost, states, accum_1, accum_2):
@@ -249,8 +253,9 @@ class Sparse2L(Layer):
             self.regularizers.append(activity_regularizer)
 
     def get_initial_states(self, inputs):
+        u_init = srng.uniform((inputs.shape[0], self.causes_dim))
         return (alloc_zeros_matrix(inputs.shape[0], self.output_dim),
-                alloc_zeros_matrix(inputs.shape[0], self.causes_dim))
+                u_init)
 
     def _step(self, x_tm1, u_tm1, inputs, prior, *args):
         outputs = self.activation(T.dot(x_tm1, self.W))
@@ -278,8 +283,11 @@ class Sparse2L(Layer):
         else:
             x_pool = x
 
+        u_cost = causes * x_pool  # * self.gamma
+        u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma/10.)
+        causes = (1 + T.exp(-T.dot(u, self.V))) * .5
         u_cost = causes * x_pool * self.gamma
-        u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma)
+
         return (x, u, u_cost, outputs)
 
     def _get_output(self, inputs, train=False, prior=0):
@@ -480,7 +488,7 @@ class ConvSparse2L(Layer):
 
 class TemporalSparseCoding(Recurrent):
     def __init__(self, prototype, transition_net, truncate_gradient=-1,
-                 return_reconstruction=True,
+                 return_mode='reconstruction',
                  init='glorot_uniform'):
 
         super(TemporalSparseCoding, self).__init__()
@@ -516,14 +524,14 @@ class TemporalSparseCoding(Recurrent):
         prior = self.tnet.get_output()
         self.tnet.input = tmp
         if self.is_conv:
-            new_x = self.prototype._get_output(inputs, prior=prior)
+            new_x, new_u, u_cost, rec = self.prototype._get_output(inputs, prior=prior)
             inp = T.nnet.conv.conv2d(new_x, self.W, border_mode=self.border_mode,
                                      subsample=self.subsample)
             outputs = self.activation(inp)
         else:
             new_x = self.prototype._get_output(inputs, prior=prior)
             outputs = self.activation(T.dot(new_x, self.W))
-        return new_x, outputs
+        return new_x, u_cost, outputs
 
     def get_output(self, train=False):
         inputs = self.get_input(train).dimshuffle(1, 0, 2)
@@ -534,10 +542,12 @@ class TemporalSparseCoding(Recurrent):
             outputs_info=[initial_states, None],
             truncate_gradient=self.truncate_gradient)
 
-        if self.return_reconstruction:
+        if self.return_mode == 'reconstruction':
             return outputs[-1].dimshuffle(1, 0, 2)
-        else:
-            return outputs[0].dimshuffle(1, 0, 2)
+        elif self.return_mode == 'all':
+            return [outputs[0].dimshuffle(1, 0, 2),
+                    outputs[1].dimshuffle(1, 0, 2),
+                    outputs[2].dimshuffle(1, 0, 2)]
 
     def get_config(self):
         return {"name": self.__class__.__name__,
@@ -546,7 +556,7 @@ class TemporalSparseCoding(Recurrent):
                 "init": self.init.__name__,
                 "activation": self.activation.__name__,
                 "truncate_gradient": self.truncate_gradient,
-                "return_reconstruction": self.return_reconstruction}
+                "return_mode": self.return_mode}
 
 
 class SparseCodingFista(Layer):
