@@ -35,8 +35,8 @@ def _IstaStep(cost, states, lr=.001, lambdav=.1, prior=0):
     if prior != 0:
         new_x += lambdav*lr*.1*_proxInnov(states, prior)
     new_states = _proxOp(states-lr*grads, lr*lambdav)
-    # return theano.gradient.disconnected_grad(new_states)
-    return new_states
+    return theano.gradient.disconnected_grad(new_states)
+    # return new_states
 
 
 def _RMSPropStep(cost, states, accum_1, accum_2):
@@ -283,7 +283,7 @@ class Sparse2L(Layer):
         else:
             x_pool = x
 
-        u_cost = causes * x_pool  # * self.gamma
+        u_cost = causes * x_pool * self.gamma
         u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma/10.)
         causes = (1 + T.exp(-T.dot(u, self.V))) * .5
         u_cost = causes * x_pool * self.gamma
@@ -515,7 +515,6 @@ class TemporalSparseCoding(Recurrent):
             self.input = T.TensorType(floatX, (False,)*5)()
 
         self.params = prototype.params  # + [self.A, ]
-        self.return_reconstruction = return_reconstruction
         self.truncate_gradient = truncate_gradient
 
     def _step(self, inputs, x_t):
