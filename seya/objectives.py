@@ -5,6 +5,10 @@ def sum_mse(y_true, y_pred):
     return T.sqr(y_true - y_pred).sum()
 
 
+def self_cost(y_true, y_pred):
+    return y_pred.sum() + y_true.sum()*0
+
+
 def gaussianKL(dumb, y_pred):
     # Assumes: y_pred = T.concatenate([mean, logsigma], axis=-1)
     dim = y_pred.shape[1] / 2

@@ -2,9 +2,32 @@ import theano
 import numpy as np
 import h5py
 
+from keras.datasets import mnist
+from keras.utils import np_utils
+
 from collections import defaultdict
 from skimage.transform import rotate
 floatX = theano.config.floatX
+
+
+def load_rotated_mnist():
+    (_, y_train), (_, y_test) = mnist.load_data()
+
+    X_train = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_train', 0, 50000, 0, 19)
+    X2_train = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_train', 0, 50000, 1, 20)
+
+    X_valid = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_valid', 0, 10000-16, 0, 19)
+    X2_valid = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_valid', 0, 10000-16, 1, 20)
+
+    X_test = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_test', 0, 10000-16, 0, 19)
+    X2_test = HDF5Tensor('/home/eders/python/blog/rotated_mnist_train.hdf5', 'X_test', 0, 10000-16, 1, 20)
+
+    # convert class vectors to binary class matrices
+    Y_train = np_utils.to_categorical(y_train, 10)
+    Y_test = np_utils.to_categorical(y_test, 10)
+    return (X_train, X2_train, Y_train[:50000],
+            X_valid, X2_valid, Y_train[50000:],
+            X_test, X2_test, Y_test)
 
 
 class TransformedDataset():
