@@ -528,7 +528,7 @@ class TSC2L(Recurrent):
     def __init__(self, layer1, layer2, truncate_gradient=1,
                  return_mode='all',
                  init='glorot_uniform',
-                 inner_init='orthogonal'):
+                 inner_init='eye'):
         super(TSC, self).__init__()
         self.return_sequences = True
         self.truncate_gradient = truncate_gradient
@@ -552,7 +552,7 @@ class TSC2L(Recurrent):
                                                                 x_prior=xl1_prior,
                                                                 u_prior=ul1_prior,
                                                                 train=False)
-        xl2, ul2, ul2_cost, outputsl2 = self.layer2._get_output(inputs=inp,
+        xl2, ul2, ul2_cost, outputsl2 = self.layer2._get_output(inputs=xl1,
                                                                 x_prior=xl2_prior,
                                                                 u_prior=ul2_prior,
                                                                 train=False)
@@ -563,7 +563,8 @@ class TSC2L(Recurrent):
         outputs, updates = theano.scan(
             self._step,
             sequences=X,
-            outputs_info=self.layer1.get_initial_states(X[0])+(None, None),
+            outputs_info=self.layer1.get_initial_states(X[0])+(None, None) +
+            self.layer2.get_initial_states(X[0])+(None, None),
             non_sequences=self.params,
             truncate_gradient=self.truncate_gradient)
         outputs = [o.dimshuffle(1, 0, 2) for o in outputs]
