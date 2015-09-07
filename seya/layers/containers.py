@@ -92,8 +92,10 @@ class Recursive(Layer):
 
     def get_output(self, train=False):
         outputs = self._get_output()
+        outputs = [o for o, n in zip(outputs, self.nodes.values()) if n.is_output]
+        print('::: ouputs {} | nodes {}'.format(outputs, self.nodes.values()))
         if len(self.inputs) == len(outputs) == 1:
-            return outputs
+            return outputs[0]
         else:
             return dict([(k, o) for k, o in zip(self.outputs.keys(), outputs)])
 
@@ -182,6 +184,8 @@ class Recursive(Layer):
         if create_output:
             self.add_output(name, input=name)
             self.nodes[name].is_output = True
+        else:
+            self.nodes[name].is_output = False
 
     def get_constants(self):
         return []
