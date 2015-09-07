@@ -552,7 +552,7 @@ class TSC2L(Recurrent):
                                                                 x_prior=xl1_prior,
                                                                 u_prior=ul1_prior,
                                                                 train=False)
-        xl2, ul2, ul2_cost, outputsl2 = self.layer2._get_output(inputs=xl1,
+        xl2, ul2, ul2_cost, outputsl2 = self.layer2._get_output(inputs=ul1,
                                                                 x_prior=xl2_prior,
                                                                 u_prior=ul2_prior,
                                                                 train=False)
