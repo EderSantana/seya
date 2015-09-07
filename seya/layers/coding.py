@@ -27,12 +27,12 @@ def _proxInnov(x, x_tm1):
     return i1
 
 
-def _IstaStep(cost, states, lr=.001, lambdav=.1, prior=0):
+def _IstaStep(cost, states, lr=.001, lambdav=.1, x_prior=0):
     grads = T.grad(cost, states)
     new_x = states-lr*grads
-    if prior != 0:
-        new_x += lambdav*lr*.1*_proxInnov(states, prior)
-    new_states = _proxOp(states-lr*grads, lr*lambdav)
+    if x_prior != 0:
+        new_x += lambdav*lr*.1*_proxInnov(states, x_prior)
+    new_states = _proxOp(new_x, lr*lambdav)
     return theano.gradient.disconnected_grad(new_states)
 
 
@@ -253,7 +253,9 @@ class Sparse2L(Layer):
         u_init = alloc_zeros_matrix(inputs.shape[0], self.causes_dim) + .1
         return (alloc_zeros_matrix(inputs.shape[0], self.output_dim), u_init)
 
-    def _step(self, x_tm1, u_tm1, inputs, prior, *args):
+    def _step(self, x_tm1, u_tm1, inputs, x_prior, u_prior, *args):
+        # x_prior are previous states
+        # u_prior are causes from above
         outputs = self.activation(T.dot(x_tm1, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
         causes = (1 + T.exp(-T.dot(u_tm1, self.V))) * .5
@@ -270,7 +272,7 @@ class Sparse2L(Layer):
             causes_up = causes
 
         x = _IstaStep(rec_error, x_tm1, lambdav=self.gamma*causes_up,
-                      prior=prior)
+                      x_prior=x_prior)
 
         if self.pool_flag:
             dim = T.cast(T.sqrt(x.shape[1]), 'int64')
@@ -279,20 +281,21 @@ class Sparse2L(Layer):
         else:
             x_pool = x
 
-        u_cost = causes * x_pool * self.gamma
+        prev_u_cost = .01 * self.gamma * T.sqr(u_tm1-u_prior).sum()
+        u_cost = causes * x_pool * self.gamma + prev_u_cost
         u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma/10.)
         causes = (1 + T.exp(-T.dot(u, self.V))) * .5
         u_cost = causes * x_pool * self.gamma
 
         return (x, u, u_cost, outputs)
 
-    def _get_output(self, inputs, prior=0, train=False):
+    def _get_output(self, inputs, x_prior=0, u_prior=0, train=False):
         x_init, u_init = self.get_initial_states(inputs)
         outputs, updates = theano.scan(
             self._step,
             sequences=[],
             outputs_info=[x_init, u_init, None, None],
-            non_sequences=[inputs, prior] + self.params,
+            non_sequences=[inputs, x_prior, u_prior] + self.params,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
@@ -484,6 +487,7 @@ class ConvSparse2L(Layer):
 
 
 class TSC(Recurrent):
+    '''Ad hoc single layer DPCN'''
     def __init__(self, s2l, truncate_gradient=1,
                  return_mode='all',
                  init='glorot_uniform'):
@@ -499,7 +503,10 @@ class TSC(Recurrent):
 
     def _step(self, inp, x_t, u_t, *args):
         x_prior = T.dot(x_t, self.A)
-        x, u, u_cost, outputs = self.s2l._get_output(inputs=inp, prior=x_prior,
+        u_prior = 0
+        x, u, u_cost, outputs = self.s2l._get_output(inputs=inp,
+                                                     x_prior=x_prior,
+                                                     u_prior=u_prior,
                                                      train=False)
         return x, u, u_cost, outputs
 
@@ -509,6 +516,54 @@ class TSC(Recurrent):
             self._step,
             sequences=X,
             outputs_info=self.s2l.get_initial_states(X[0])+(None, None),
+            non_sequences=self.params,
+            truncate_gradient=self.truncate_gradient)
+        outputs = [o.dimshuffle(1, 0, 2) for o in outputs]
+        return outputs
+
+
+class TSC2L(Recurrent):
+    '''Ad hoc 2 Layer DPCN'''
+
+    def __init__(self, layer1, layer2, truncate_gradient=1,
+                 return_mode='all',
+                 init='glorot_uniform',
+                 inner_init='orthogonal'):
+        super(TSC, self).__init__()
+        self.return_sequences = True
+        self.truncate_gradient = truncate_gradient
+        self.init = initializations.get(init)
+        self.inner_init = initializations.get(inner_init)
+        layer1.return_mode = return_mode
+        self.layer1 = layer1
+        layer2.return_mode = return_mode
+        self.layer2 = layer2
+        self.A1 = self.inner_init((layer1.output_dim, layer1.output_dim))
+        self.A2 = self.inner_init((layer1.output_dim, layer1.output_dim))
+        self.params = layer1.params + layer2.parmas  # + [self.A1, self.A2]
+        self.input = T.tensor3()
+
+    def _step(self, inp, xl1_t, ul1_t, xl2_t, ul2_t, *args):
+        xl1_prior = T.dot(xl1_t, self.A1)
+        xl2_prior = T.dot(xl2_t, self.A2)
+        ul1_prior = T.dot(xl2_prior, self.layer2.W)
+        ul2_prior = 0
+        xl1, ul1, ul1_cost, outputsl1 = self.layer1._get_output(inputs=inp,
+                                                                x_prior=xl1_prior,
+                                                                u_prior=ul1_prior,
+                                                                train=False)
+        xl2, ul2, ul2_cost, outputsl2 = self.layer2._get_output(inputs=inp,
+                                                                x_prior=xl2_prior,
+                                                                u_prior=ul2_prior,
+                                                                train=False)
+        return xl1, ul1, ul1_cost, outputsl1, xl2, ul2, ul2_cost, outputsl2
+
+    def get_output(self, train=False):
+        X = self.get_input().dimshuffle(1, 0, 2)
+        outputs, updates = theano.scan(
+            self._step,
+            sequences=X,
+            outputs_info=self.layer1.get_initial_states(X[0])+(None, None),
             non_sequences=self.params,
             truncate_gradient=self.truncate_gradient)
         outputs = [o.dimshuffle(1, 0, 2) for o in outputs]
