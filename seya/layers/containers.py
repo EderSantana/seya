@@ -143,13 +143,14 @@ class Recursive(Layer):
         if name in self.namespace:
             raise Exception('Duplicate node identifier: ' + name)
         if input:
-            if input not in self.namespace:
-                raise Exception('Unknown node/input identifier: ' + input)
-            if input in self.nodes:
-                layer.set_previous(self.nodes[input])
-            elif input in self.inputs:
-                layer.set_previous(self.inputs[input])
-            layer.input_names = [input, ]
+            # if input not in self.namespace:
+            #     raise Exception('Unknown node/input identifier: ' + input)
+            # if input in self.nodes:
+            #     layer.set_previous(self.nodes[input])
+            # elif input in self.inputs:
+            #     layer.set_previous(self.inputs[input])
+            # layer.input_names = [input, ]
+            inputs = [input, ]
         if inputs:
             to_merge = []
             for n in inputs:

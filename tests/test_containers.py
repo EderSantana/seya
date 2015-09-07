@@ -72,10 +72,10 @@ class TestOrthoRNN(unittest.TestCase):
         self.model.add_state('h', dim=self.state_dim)
         self.model.add_node(Dense(self.input_dim, self.state_dim,
                                   init='one'), name='i2h',
-                            inputs=['input', ])
+                            input='input')
         self.model.add_node(Dense(self.state_dim, self.state_dim,
                                   init='orthogonal'), name='h2h',
-                            inputs=['h', ])
+                            inputs='h')
         self.model.add_node(Lambda(lambda x: x), name='rec',
                             inputs=['i2h', 'h2h'], merge_mode='sum',
                             return_state='h',
