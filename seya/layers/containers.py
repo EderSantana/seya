@@ -93,7 +93,7 @@ class Recursive(Layer):
     def get_output(self, train=False):
         outputs = self._get_output()
         outputs = [o for o, n in zip(outputs, self.nodes.values()) if n.is_output]
-        print('::: ouputs {} | nodes {}'.format(outputs, self.nodes.values()))
+        # print('::: ouputs {} | nodes {}'.format(outputs, self.nodes.values()))
         if len(self.inputs) == len(outputs) == 1:
             return outputs[0]
         else:
@@ -192,26 +192,26 @@ class Recursive(Layer):
         return []
 
     def _step(self, *args):
-        print('--- {}'.format(args))
+        # print('--- {}'.format(args))
         local_outputs = OrderedDict()
         for k, node in self.nodes.items():
-            print('This is node {}'.format(k))
+            # print('This is node {}'.format(k))
             local_inputs = []
             for inp in node.input_names:
-                print('>>> input {}'.format(inp))
+                # print('>>> input {}'.format(inp))
                 if inp in self.input_order:
                     idx = self.input_order.index(inp)
                     local_inputs.append(args[idx])
-                    print('iii idx: {}'.format(idx))
+                    # print('iii idx: {}'.format(idx))
                 elif inp in local_outputs:
-                    print('??? output {}'.format(inp))
+                    # print('??? output {}'.format(inp))
                     local_inputs.append(local_outputs[inp])
                 elif inp in node.input_list:  # state input
                     idx = len(self.input_order) + self.state_order.index(inp)
-                    print('!!! state {0}, idx {1}'.format(inp, idx))
+                    # print('!!! state {0}, idx {1}'.format(inp, idx))
                     local_inputs.append(args[idx])
             local_inputs = [x for x in local_inputs if x != []]
-            print(local_inputs)
+            # print(local_inputs)
             if len(local_inputs) > 1:
                 if node.merge_mode == 'concat':
                     inputs = T.concatenate(local_inputs, axis=-1)
@@ -219,14 +219,14 @@ class Recursive(Layer):
                     inputs = sum(local_inputs)
             else:
                 inputs = local_inputs[0]
-            print('After concat {}'.format(inputs))
+            # print('After concat {}'.format(inputs))
             local_outputs[k] = apply_layer(node, inputs)
-            print('local outputs: {}'.format(local_outputs))
+            # print('local outputs: {}'.format(local_outputs))
 
-        print('+++ {}'.format(local_outputs.values()))
+        # print('+++ {}'.format(local_outputs.values()))
         out_vals = []
         for k, v in local_outputs.items():
-            print('key: {}'.format(k))
+            # print('key: {}'.format(k))
             out_vals.append(v)
         # return local_outputs.values()
         return out_vals
@@ -237,8 +237,8 @@ class Recursive(Layer):
             X = [x.dimshuffle(1, 0, 2) for x in I.values()]
         else:
             X = I.dimshuffle(1, 0, 2)
-        print('=='*10)
-        print('*** {}'.format(self.initial_states))
+        # print('=='*10)
+        # print('*** {}'.format(self.initial_states))
         outputs, updates = scan(self._step,
                                 sequences=X,
                                 outputs_info=self.initial_states,

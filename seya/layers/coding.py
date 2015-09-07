@@ -490,15 +490,17 @@ class TSC(Recurrent):
     '''Ad hoc single layer DPCN'''
     def __init__(self, s2l, truncate_gradient=1,
                  return_mode='all',
-                 init='glorot_uniform'):
+                 init='glorot_uniform',
+                 inner_init='identity'):
         super(TSC, self).__init__()
         self.return_sequences = True
         self.truncate_gradient = truncate_gradient
         self.init = initializations.get(init)
+        self.inner_init = initializations.get(inner_init)
         s2l.return_mode = return_mode
         self.s2l = s2l
-        self.A = self.init((s2l.output_dim, s2l.output_dim))
-        self.params = s2l.params + [self.A, ]
+        self.A = self.inner_init((s2l.output_dim, s2l.output_dim))
+        self.params = s2l.params  # + [self.A, ]
         self.input = T.tensor3()
 
     def _step(self, inp, x_t, u_t, *args):
@@ -528,8 +530,8 @@ class TSC2L(Recurrent):
     def __init__(self, layer1, layer2, truncate_gradient=1,
                  return_mode='all',
                  init='glorot_uniform',
-                 inner_init='eye'):
-        super(TSC, self).__init__()
+                 inner_init='identity'):
+        super(TSC2L, self).__init__()
         self.return_sequences = True
         self.truncate_gradient = truncate_gradient
         self.init = initializations.get(init)
@@ -539,8 +541,8 @@ class TSC2L(Recurrent):
         layer2.return_mode = return_mode
         self.layer2 = layer2
         self.A1 = self.inner_init((layer1.output_dim, layer1.output_dim))
-        self.A2 = self.inner_init((layer1.output_dim, layer1.output_dim))
-        self.params = layer1.params + layer2.parmas  # + [self.A1, self.A2]
+        self.A2 = self.inner_init((layer2.output_dim, layer2.output_dim))
+        self.params = layer1.params + layer2.params  # + [self.A1, self.A2]
         self.input = T.tensor3()
 
     def _step(self, inp, xl1_t, ul1_t, xl2_t, ul2_t, *args):
