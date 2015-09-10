@@ -30,11 +30,8 @@ setup(
     author="Eder Santana",
     author_email='edercsjr@gmail.com',
     url='https://github.com/edersantana/seya',
-    packages=[
-        'seya',
-    ],
-    package_dir={'seya':
-                 'seya'},
+    packages=['seya', 'seya.layers'],
+    package_dir={'seya': 'seya'},
     include_package_data=True,
     install_requires=requirements,
     license="BSD",
