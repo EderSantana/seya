@@ -282,10 +282,10 @@ class Sparse2L(Layer):
             x_pool = x
 
         prev_u_cost = .01 * self.gamma * T.sqr(u_tm1-u_prior).sum()
-        u_cost = causes * x_pool * self.gamma + prev_u_cost
-        u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma/10.)
+        u_cost = causes * abs(x_pool) * self.gamma + prev_u_cost
+        u = _IstaStep(u_cost.sum(), u_tm1, lambdav=self.gamma)
         causes = (1 + T.exp(-T.dot(u, self.V))) * .5
-        u_cost = causes * x_pool * self.gamma
+        u_cost = causes * abs(x_pool) * self.gamma
 
         return (x, u, u_cost, outputs)
 
