@@ -6,7 +6,7 @@ from keras.layers.recurrent import Recurrent
 from keras import activations, initializations, regularizers, constraints
 from keras.utils.theano_utils import shared_zeros
 
-from ..utils import apply_model
+from ..utils import apply_layer
 
 
 class FDPCN(Recurrent):
@@ -161,7 +161,7 @@ class Tensor(Recurrent):
     def _step(self, Wx_t, s_tm1, u_tm1, C, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
         s_t = self.activation(uWx + T.dot(s_tm1, C) + b)
-        u_t = apply_model(self.hid2output, s_t)
+        u_t = apply_layer(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, train=False):
@@ -211,7 +211,7 @@ class Tensor2(Tensor):
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
         s_t = self.activation(uWx + b)
-        u_t = apply_model(self.hid2output, s_t)
+        u_t = apply_layer(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, train=False):
@@ -266,7 +266,7 @@ class ProdTensor(Tensor):
     def _step(self, Wx_t, s_tm1, u_tm1, C, b0, b1, *args):
         Cu = self.activation(T.dot(u_tm1, C) + b0)
         s_t = self.activation(Wx_t*Cu + b1)
-        u_t = apply_model(self.hid2output, s_t)
+        u_t = apply_layer(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, train=False):
@@ -316,7 +316,7 @@ class ProdExp(Tensor):
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).prod(axis=1)  # shape: batch/output_dim
         s_t = self.activation(uWx + b)
-        u_t = apply_model(self.hid2output, s_t)
+        u_t = apply_layer(self.hid2output, s_t)
         return s_t, u_t
 
     def get_output(self, train=False):

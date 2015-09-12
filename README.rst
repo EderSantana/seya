@@ -21,4 +21,6 @@ Those smart guys may know a lot about ancient greek mathematicians and poetry. B
 Features
 --------
 
-* TODO
+* Spatial Transformer Networks example
+* Recursive graph \[[WIP](https://github.com/fchollet/keras/issues/620)\]
+* Sparse coding
