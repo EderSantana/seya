@@ -16,11 +16,10 @@ install:
 # # I copyed most of this from Theano rep
     - conda create --yes -q -n pyenv mkl python=2.7 numpy scipy theano matplotlib nose pyparsing pip
     - source activate pyenv
-    - pip install pydot
-    - pip install . --no-deps --use-mirrors
+    - pip install .
     - pip install coverage
     - pip install coveralls
 script:
-    - coverage run --source=top setup.py test
+    - coverage run --source=seya setup.py test
 after_success:
     coveralls
