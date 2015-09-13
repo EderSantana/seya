@@ -1,11 +1,45 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import os
+from setuptools.command.test import test as TestCommand
+import codecs
+import re
+import sys
 
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+def read(*parts):
+    # intentionally *not* adding an encoding option to open
+    return codecs.open(os.path.join(here, *parts), 'r').read()
+
+
+def find_version(*file_paths):
+    version_file = read(*file_paths)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
+                              version_file, re.M)
+    if version_match:
+        return version_match.group(1)
+    raise RuntimeError("Unable to find version string.")
+
+
+class PyTest(TestCommand):
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = ['--strict', '--verbose', '--tb=long', 'tests']
+        self.test_suite = True
+
+    def run_tests(self):
+            import pytest
+            errno = pytest.main(self.test_args)
+            sys.exit(errno)
+
+long_description = read('README.rst')
 
 
 with open('README.rst') as readme_file:
@@ -34,13 +68,13 @@ setup(
     package_dir={'seya': 'seya'},
     include_package_data=True,
     install_requires=requirements,
-    license="BSD",
+    license="MIT",
     zip_safe=False,
     keywords='seya',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: BSD License',
+        'Intended Audience :: Developers, Science/Research',
+        'License :: The MIT License',
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
         'Programming Language :: Python :: 2.6',
@@ -49,6 +83,10 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ],
+    cmdclass={'test': PyTest},
+    extras_require={
+        'testing': ['pytest'],
+    },
     test_suite='tests',
     tests_require=test_requirements
 )
