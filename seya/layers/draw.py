@@ -2,6 +2,9 @@ import theano.tensor as T
 
 from keras.layers.recurrent import GRU, Recurrent
 
+from ..utils import theano_random
+from ..regularizers import SimpleCost
+
 
 class DRAW(Recurrent):
     '''DRAW
@@ -10,16 +13,21 @@ class DRAW(Recurrent):
     ===========
     dim : encoder dimension
     input_shape : (n_channels, rows, cols)
-    N : Size of filter bank
+    N_enc : Size of the encoder's filter bank
+    N_dec : Size of the decoder's filter bank
     n_steps : number of sampling steps
     '''
-    def __init__(self, dim, input_shape, N, n_steps,
-                 inner_rnn='gru', truncate_gradient=-1):
+    srng = theano_random()
+
+    def __init__(self, dim, input_shape, N_enc, N_dec, n_steps,
+                 inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
         self.dim = dim
         self.input_shape = input_shape
-        self.N = N
+        self.N_enc = N_enc
+        self.N_dec = N_dec
         self.n_steps = n_steps
         self.truncate_gradient = truncate_gradient
+        self.return_sequences = return_sequences
 
         if len(input_shape) == 2:  # single channel image
             self.height = input_shape[0]
@@ -36,18 +44,17 @@ class DRAW(Recurrent):
 
         self.L = self.enc.init((dim, 5))  # attention parameters (eq. 21)
 
-    def _get_attention_params(self, h_dec, L):
+    def _get_attention_params(self, h_dec, L, N):
         p = T.dot(h_dec, L)
         gx = self.width * (p[0]+1) / 2.
         gy = self.height * (p[1]+1) / 2.
         sigma2 = T.exp(p[2])
-        delta = T.exp(p[3] * (max(self.width, self.height) - 1) / (self.N - 1))
+        delta = T.exp(p[3] * (max(self.width, self.height) - 1) / (N - 1))
         gamma = T.exp(p[4])
         return gx, gy, sigma2, delta, gamma
 
-    def _get_filterback(self, gx, gy, sigma2, delta):
+    def _get_filterback(self, gx, gy, sigma2, delta, N):
         eps = 1e-6
-        N = self.N
         i = T.arange(N)
         a = T.arange(self.width)
         b = T.arange(self.height)
@@ -67,11 +74,20 @@ class DRAW(Recurrent):
         return gamma * FyxFx
 
     def _write(self, x, gamma, Fx, Fy):
-        pass
+        Fyx = (Fy[:, None, :, :, None] * x[:, :, :, None, :]).sum(axis=2)
+        FxT = Fx.dimshuffle(0, 2, 1)
+        FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
+        return FyxFx / gamma
 
-    def _sample(self):
-        # return sample, kl
-        pass
+    def _sample(self, h):
+        mean = T.tanh(T.dot(h, self.W_mean))
+        # TODO refactor to get user input instead
+        eps = self.srng.normal(mean=0, std=1, size=mean.shape)
+        logsigma = T.tanh(T.dot(h, self.W_sigma))
+        sigma = T.exp(logsigma)
+        sample = mean + eps * sigma
+        kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
+        return sample, kl.mean()
 
     def _get_rnn_input(self, x, rnn):
         if self.inner_rnn == 'gru':
@@ -89,8 +105,9 @@ class DRAW(Recurrent):
 
     def _step(self, x, mask, canvas, h_enc, h_dec, *args):
         x_hat = x - canvas
-        gx, gy, sigma2, delta, gamma = self._get_attention_params(h_dec, self.L)
-        Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta)
+        gx, gy, sigma2, delta, gamma = self._get_attention_params(h_dec, self.L,
+                                                                  self.N_enc)
+        Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
         read_x_hat = self._read(x_hat, gamma, Fx, Fy).flatten(ndim=2)
         enc_input = T.concatenate([read_x, read_x_hat], axis=-1)
@@ -105,7 +122,35 @@ class DRAW(Recurrent):
                                         mask, h_dec)
 
         gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_params(
-            h_dec, self.L_dec)
-        Fx_w, Fy_w = self._get_filterback(gx_w, gy_w, sigma2_w, delta_w)
+            h_dec, self.L_dec, self.N_dec)
+        Fx_w, Fy_w = self._get_filterback(gx_w, gy_w, sigma2_w, delta_w,
+                                          self.N_dec)
         new_canvas = canvas + self._write(canvas, Fx, Fy)
-        return new_canvas, new_h_enc, new_h_dec
+        return new_canvas, new_h_enc, new_h_dec, kl
+
+    def _get_initial_states(self, X):
+        canvas = alloc_zeros_matrix(X.shape[2:])
+        init_enc = alloc_zeros_matrix(X.shape[1], self.output_dim)
+        init_dec = alloc_zeros_matrix(X.shape[1], self.output_dim)
+        return canvas, init_enc, init_dec
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
+        X = X.dimshuffle((1, 0, 2, 3, 4))
+        init_enc, init_dec = self._get_initial_states(X)
+
+        outputs, updates = scan(self._step,
+                                sequences=[X, padded_mask],
+                                output_info=[canvas, init_enc, init_dec],
+                                non_sequences=self.params,
+                                truncate_gradient=self.truncate_gradient)
+        self.updates = updates
+        kl = outputs[-1].sum()
+        self.regularizers = [SimpleCost(kl), ]
+        self.updates = updates
+        if self.return_sequences:
+            canvas = outputs[0].dimshuffle(0, 1, 2, 3, 4)
+        else:
+            canvas = outputs[0][-1]
+        return canvas
