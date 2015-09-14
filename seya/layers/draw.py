@@ -103,7 +103,10 @@ class DRAW(Recurrent):
         eps = self.theano_rng.normal(avg=0., std=1., size=mean.shape)
         logsigma = T.tanh(T.dot(h, self.W_sigma) + self.b_sigma)
         sigma = T.exp(logsigma)
-        sample = mean + eps * sigma
+        if self._train:
+            sample = mean + eps * sigma
+        else:
+            sample = mean
         kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
         return sample, kl
 
@@ -154,16 +157,16 @@ class DRAW(Recurrent):
         return new_canvas, new_h_enc, new_h_dec, kl
 
     def get_output(self, train=False):
+        self._train = train
         X = self.get_input(train)
         canvas, init_enc, init_dec = self._get_initial_states(X)
 
         outputs, updates = scan(self._step,
                                 sequences=[],
                                 outputs_info=[canvas, init_enc, init_dec, None],
-                                non_sequences=[X, ] + self.params,
+                                non_sequences=[X] + self.params,
                                 n_steps=self.n_steps,
                                 truncate_gradient=self.truncate_gradient)
-        self.updates = updates
         kl = outputs[-1].mean(axis=(1, 2)).sum()
         self.regularizers = [SimpleCost(kl), ]
         self.updates = updates
