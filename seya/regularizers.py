@@ -1,3 +1,4 @@
+import theano.tensor as T
 from keras.regularizers import Regularizer
 
 
@@ -21,7 +22,8 @@ class GaussianKL(Regularizer):
 
 
 class SimpleCost(Regularizer):
-    def set_param(self, cost):
+    def __init__(self, cost):
+        super(SimpleCost, self).__init__()
         self.cost = cost
 
     def __call__(self, loss):

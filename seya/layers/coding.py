@@ -2,16 +2,14 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from theano.tensor.shared_randomstreams import RandomStreams
-srng = RandomStreams(seed=234)
-
 from theano.tensor.signal.downsample import max_pool_2d
 from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
 from keras import activations, initializations
 from keras.utils.theano_utils import alloc_zeros_matrix, sharedX
 
-from ..utils import diff_abs
+from ..utils import diff_abs, theano_rng
+srng = theano_rng()
 
 floatX = theano.config.floatX
 
@@ -250,7 +248,9 @@ class Sparse2L(Layer):
             self.regularizers.append(activity_regularizer)
 
     def get_initial_states(self, inputs):
-        u_init = alloc_zeros_matrix(inputs.shape[0], self.causes_dim) + .1
+        # u_init = alloc_zeros_matrix(inputs.shape[0], self.causes_dim) + .1
+        u_init = theano_rng.uniform(low=0, high=1, size=(inputs.shape[0],
+                                                         self.causes_dim))
         return (alloc_zeros_matrix(inputs.shape[0], self.output_dim), u_init)
 
     def _step(self, x_tm1, u_tm1, inputs, x_prior, u_prior, *args):

@@ -1,11 +1,11 @@
 import numpy as np
 import theano.tensor as tensor
 from keras.layers.core import Activation
-from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 
-def theano_random(seed=123):
-    return RandomStreams(seed=seed)
+def theano_rng(seed=123):
+    return MRG_RandomStreams(seed=seed)
 
 
 def apply_layer(layer, X):
