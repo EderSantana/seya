@@ -4,7 +4,7 @@ from theano import scan
 from keras.layers.recurrent import GRU, Recurrent
 from keras.utils.theano_utils import alloc_zeros_matrix, shared_zeros
 
-from ..utils import theano_random
+from ..utils import theano_rng
 from ..regularizers import SimpleCost
 
 
