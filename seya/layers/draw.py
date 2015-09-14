@@ -21,7 +21,7 @@ class DRAW(Recurrent):
     '''
     srng = theano_random()
 
-    def __init__(self, dim, input_shape, N_enc, N_dec, n_steps,
+    def __init__(self, dim, input_shape, N_enc, N_dec, n_steps, input_channels,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
         self.dim = dim
         self.input_shape = input_shape
@@ -46,6 +46,7 @@ class DRAW(Recurrent):
 
         self.L_enc = self.enc.init((dim, 5))  # attention parameters (eq. 21)
         self.L_dec = self.enc.init((dim, 5))  # attention parameters (eq. 21)
+        self.W_dec = self.enc.init((dim, self.N_dec**2+input_channels))
         self.params = self.enc.params + self.dec.params + [self.L_enc,
                                                            self.L_dec]
 
@@ -80,8 +81,7 @@ class DRAW(Recurrent):
 
     def _write(self, x, gamma, Fx, Fy):
         Fyx = (Fy[:, None, :, :, None] * x[:, :, :, None, :]).sum(axis=2)
-        FxT = Fx.dimshuffle(0, 2, 1)
-        FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
+        FyxFx = (Fyx[:, :, :, :, None] * Fx[:, None, None, :, :]).sum(axis=3)
         return FyxFx / gamma
 
     def _sample(self, h):
@@ -131,7 +131,9 @@ class DRAW(Recurrent):
             h_dec, self.L_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterback(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
-        new_canvas = canvas + self._write(canvas, Fx, Fy)
+        write_patch = T.dot(h_dec, self.W_dec).reshape((
+            x.shape[0], self.input_shape, self.N_dec, self.N_dec))
+        new_canvas = canvas + self._write(write_patch, Fx, Fy)
         return new_canvas, new_h_enc, new_h_dec, kl
 
     def _get_initial_states(self, X):
