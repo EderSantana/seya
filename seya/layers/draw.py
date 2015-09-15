@@ -13,21 +13,27 @@ class DRAW(Recurrent):
 
     Parameters:
     ===========
-    dim : encoder/decoder dimension
+    h_dim : encoder/decoder dimension
+    z_dim : random sample dimension (reparametrization trick output)
     input_shape : (n_channels, rows, cols)
-    N_enc : Size of the encoder's filter bank
-    N_dec : Size of the decoder's filter bank
-    n_steps : number of sampling steps (or how long it takes to draw)
+    N_enc : Size of the encoder's filter bank (MNIST default: 2)
+    N_dec : Size of the decoder's filter bank (MNIST default: 5)
+    n_steps : number of sampling steps (or how long it takes to draw, default 64)
     inner_rnn : str with rnn type ('gru' default)
     truncate_gradient : int (-1 default)
     return_sequences : bool (False default)
     '''
     theano_rng = theano_rng()
 
+<<<<<<< HEAD
+    def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
+=======
     def __init__(self, input_shape, dim, N_enc, N_dec,
+>>>>>>> 36887535baa71b60a1acc09e319496384deb867e
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
-        self.input = [T.tensor4(), T.tensor3()]
-        self.dim = dim
+        self.input = [T.tensor4(), T.tesnro3()]
+        self.h_dim = h_dim  # this is 256 for MNIST
+        self.z_dim = z_dim  # this is 100 for MNIST
         self.input_shape = input_shape
         self.N_enc = N_enc
         self.N_dec = N_dec
@@ -39,21 +45,21 @@ class DRAW(Recurrent):
 
         self.inner_rnn = inner_rnn
         if inner_rnn == 'gru':
-            self.enc = GRU(input_dim=2*self.N_enc**2 + dim, output_dim=dim)
-            self.dec = GRU(input_dim=dim, output_dim=dim)
+            self.enc = GRU(input_dim=2*self.N_enc**2 + h_dim, output_dim=h_dim)
+            self.dec = GRU(input_dim=z_dim, output_dim=h_dim)
         else:
             raise ValueError('This type of rnn is not supported')
 
-        self.L_enc = self.enc.init((dim, 5))  # "read" attention parameters (eq. 21)
-        self.L_dec = self.enc.init((dim, 5))  # "write" attention parameters (eq. 28)
+        self.L_enc = self.enc.init((h_dim, 5))  # "read" attention parameters (eq. 21)
+        self.L_dec = self.enc.init((h_dim, 5))  # "write" attention parameters (eq. 28)
         self.b_enc = shared_zeros((5))  # "read" attention parameters (eq. 21)
         self.b_dec = shared_zeros((5))  # "write" attention parameters (eq. 28)
-        self.W_patch = self.enc.init((dim, self.N_dec**2*self.input_shape[0]))
+        self.W_patch = self.enc.init((h_dim, self.N_dec**2*self.input_shape[0]))
         self.b_patch = shared_zeros((self.N_dec**2*self.input_shape[0]))
-        self.W_mean = self.enc.init((dim, dim))
-        self.W_sigma = self.enc.init((dim, dim))
-        self.b_mean = self.enc.init((dim, dim))
-        self.b_sigma = self.enc.init((dim, dim))
+        self.W_mean = self.enc.init((h_dim, z_dim))
+        self.W_sigma = self.enc.init((h_dim, z_dim))
+        self.b_mean = shared_zeros((z_dim))
+        self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
             self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
@@ -127,8 +133,8 @@ class DRAW(Recurrent):
 
     def _get_initial_states(self, X):
         canvas = alloc_zeros_matrix(*X.shape)
-        init_enc = alloc_zeros_matrix(X.shape[0], self.dim)
-        init_dec = alloc_zeros_matrix(X.shape[0], self.dim)
+        init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)
+        init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
