@@ -26,7 +26,7 @@ class DRAW(Recurrent):
 
     def __init__(self, input_shape, dim, N_enc, N_dec,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
-        self.input = T.tensor4()
+        self.input = [T.tensor4(), T.tensor3()]
         self.dim = dim
         self.input_shape = input_shape
         self.N_enc = N_enc
