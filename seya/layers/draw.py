@@ -2,7 +2,7 @@ import theano.tensor as T
 from theano import scan
 
 from keras.layers.recurrent import GRU, Recurrent
-from keras.utils.theano_utils import alloc_zeros_matrix, shared_zeros
+from keras.utils.theano_utils import shared_zeros
 
 from ..utils import theano_rng
 from ..regularizers import SimpleCost
@@ -46,6 +46,9 @@ class DRAW(Recurrent):
         else:
             raise ValueError('This type of rnn is not supported')
 
+        self.init_canvas = shared_zeros(input_shape)  # canvas and hidden state
+        self.init_h_enc = shared_zeros((h_dim))     # initial values
+        self.init_h_dec = shared_zeros((h_dim))     # should be trained
         self.L_enc = self.enc.init((h_dim, 5))  # "read" attention parameters (eq. 21)
         self.L_dec = self.enc.init((h_dim, 5))  # "write" attention parameters (eq. 28)
         self.b_enc = shared_zeros((5))  # "read" attention parameters (eq. 21)
@@ -58,7 +61,8 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
+            self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def _get_attention_params(self, h, L, b, N):
         p = T.tanh(T.dot(h, L) + b)
@@ -128,9 +132,11 @@ class DRAW(Recurrent):
         return h
 
     def _get_initial_states(self, X):
-        canvas = alloc_zeros_matrix(*X.shape)
-        init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)
-        init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)
+        batch_size = X.shape[0]
+        canvas = self.init_canvas.dimshuffle('x', 0, 1, 2, 3).repeat(batch_size,
+                                                                     axis=0)
+        init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
