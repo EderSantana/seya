@@ -27,7 +27,7 @@ class DRAW(Recurrent):
 
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
-        self.input = [T.tensor4(), T.tesnro3()]
+        self.input = [T.tensor4(), T.tensor3()]
         self.h_dim = h_dim  # this is 256 for MNIST
         self.z_dim = z_dim  # this is 100 for MNIST
         self.input_shape = input_shape
