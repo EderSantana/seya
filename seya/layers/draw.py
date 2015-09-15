@@ -25,11 +25,7 @@ class DRAW(Recurrent):
     '''
     theano_rng = theano_rng()
 
-<<<<<<< HEAD
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
-=======
-    def __init__(self, input_shape, dim, N_enc, N_dec,
->>>>>>> 36887535baa71b60a1acc09e319496384deb867e
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
         self.input = [T.tensor4(), T.tesnro3()]
         self.h_dim = h_dim  # this is 256 for MNIST
