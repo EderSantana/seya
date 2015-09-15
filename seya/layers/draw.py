@@ -24,14 +24,13 @@ class DRAW(Recurrent):
     '''
     theano_rng = theano_rng()
 
-    def __init__(self, input_shape, dim, N_enc, N_dec, n_steps,
+    def __init__(self, input_shape, dim, N_enc, N_dec,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
         self.input = T.tensor4()
         self.dim = dim
         self.input_shape = input_shape
         self.N_enc = N_enc
         self.N_dec = N_dec
-        self.n_steps = n_steps
         self.truncate_gradient = truncate_gradient
         self.return_sequences = return_sequences
 
@@ -97,10 +96,11 @@ class DRAW(Recurrent):
         FyxFx = (Fyx[:, :, :, :, None] * Fx[:, None, None, :, :]).sum(axis=3)
         return FyxFx / gamma[:, None, None, None]
 
-    def _get_sample(self, h):
+    def _get_sample(self, h, eps):
         mean = T.tanh(T.dot(h, self.W_mean) + self.b_mean)
         # TODO refactor to get user input instead
-        eps = self.theano_rng.normal(avg=0., std=1., size=mean.shape)
+        # Solve TODO
+        # eps = self.theano_rng.normal(avg=0., std=1., size=mean.shape)
         logsigma = T.tanh(T.dot(h, self.W_sigma) + self.b_sigma)
         sigma = T.exp(logsigma)
         if self._train:
@@ -131,8 +131,8 @@ class DRAW(Recurrent):
         init_dec = alloc_zeros_matrix(X.shape[0], self.dim)
         return canvas, init_enc, init_dec
 
-    def _step(self, canvas, h_enc, h_dec, x, *args):
-        x_hat = x - canvas
+    def _step(self, eps, canvas, h_enc, h_dec, x, *args):
+        x_hat = x - T.nnet.sigmoid(canvas)
         gx, gy, sigma2, delta, gamma = self._get_attention_params(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
@@ -143,7 +143,7 @@ class DRAW(Recurrent):
         x_enc_z, x_enc_r, x_enc_h = self._get_rnn_input(enc_input, self.enc)
         new_h_enc = self._get_rnn_state(self.enc, x_enc_z, x_enc_r, x_enc_h,
                                         h_enc)
-        sample, kl = self._get_sample(new_h_enc)
+        sample, kl = self._get_sample(new_h_enc, eps)
 
         x_dec_z, x_dec_r, x_dec_h = self._get_rnn_input(sample, self.dec)
         new_h_dec = self._get_rnn_state(self.dec, x_dec_z, x_dec_r, x_dec_h,
@@ -158,14 +158,14 @@ class DRAW(Recurrent):
 
     def get_output(self, train=False):
         self._train = train
-        X = self.get_input(train)
+        X, eps = self.get_input(train)
+        eps = eps.dimshuffle(1, 0, 2)
         canvas, init_enc, init_dec = self._get_initial_states(X)
 
         outputs, updates = scan(self._step,
-                                sequences=[],
+                                sequences=eps,
                                 outputs_info=[canvas, init_enc, init_dec, None],
                                 non_sequences=[X] + self.params,
-                                n_steps=self.n_steps,
                                 truncate_gradient=self.truncate_gradient)
         kl = outputs[-1].mean(axis=(1, 2)).sum()
         self.regularizers = [SimpleCost(kl), ]
