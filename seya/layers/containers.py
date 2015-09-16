@@ -123,7 +123,7 @@ class Recursive(Layer):
         self.state_order.append(name)
         inps = self.input
         if isinstance(inps, dict):
-            batch_size = inps.values()[0].shape[0]
+            batch_size = list(inps.values())[0].shape[0]
         else:
             batch_size = inps.shape[0]
         self.states[name] = T.unbroadcast(alloc_zeros_matrix(batch_size, dim), 1)

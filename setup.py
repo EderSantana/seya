@@ -39,8 +39,8 @@ def find_version(*file_paths):
 #             import pytest
 #             errno = pytest.main(self.test_args)
 #             sys.exit(errno)
-#
-# long_description = read('README.rst')
+
+long_description = read('README.rst')
 
 
 with open('README.rst') as readme_file:
@@ -88,6 +88,6 @@ setup(
     extras_require={
         'testing': ['pytest'],
     },
-    # test_suite='tests',
-    # tests_require=test_requirements
+    test_suite='tests',
+    tests_require=test_requirements
 )
