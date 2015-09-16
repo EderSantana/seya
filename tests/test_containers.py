@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from numpy.testing import assert_allclose
 
@@ -52,7 +53,7 @@ class TestRecursive(unittest.TestCase):
 
         x = np.ones((3, 5, self.input_dim)).astype(floatX)
         y = F(x)
-        print y
+        print(y)
 
         X2 = self.model2.get_input()
         Y2 = self.model2.get_output()
@@ -106,7 +107,7 @@ class TestOrthoRNN(unittest.TestCase):
 
         x = np.ones((3, 5, self.input_dim)).astype(floatX)
         y = F(x)
-        print y
+        print(y)
 
         X2 = self.model2.get_input()
         Y2 = self.model2.get_output()
@@ -128,7 +129,7 @@ class TestOrthoRNN(unittest.TestCase):
         F2 = function([X2], Y2)
         y2 = F2(x)
 
-        print "y-length: {}".format(len(y))
+        print("y-length: {}".format(len(y)))
         assert_allclose(y2, y)
 
 if __name__ == '__main__':
