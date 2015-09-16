@@ -67,6 +67,9 @@ class DRAW(Recurrent):
             self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
             self.init_canvas, self.init_h_enc, self.init_h_dec]
 
+    def init_updates(self):
+        self.get_output()  # populate regularizers list
+
     def _get_attention_params(self, h, L, b, N):
         p = T.tanh(T.dot(h, L) + b)
         gx = self.width * (p[:, 0]+1) / 2.
