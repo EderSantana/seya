@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
-from setuptools.command.test import test as TestCommand
+# from setuptools.command.test import test as TestCommand
+from setuptools import find_packages
 import codecs
 import re
-import sys
+# import sys
 
 try:
     from setuptools import setup
@@ -28,18 +29,18 @@ def find_version(*file_paths):
     raise RuntimeError("Unable to find version string.")
 
 
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = ['--strict', '--verbose', '--tb=long', 'tests']
-        self.test_suite = True
-
-    def run_tests(self):
-            import pytest
-            errno = pytest.main(self.test_args)
-            sys.exit(errno)
-
-long_description = read('README.rst')
+# class PyTest(TestCommand):
+#     def finalize_options(self):
+#         TestCommand.finalize_options(self)
+#         self.test_args = ['--strict', '--verbose', '--tb=long', 'tests']
+#         self.test_suite = True
+#
+#     def run_tests(self):
+#             import pytest
+#             errno = pytest.main(self.test_args)
+#             sys.exit(errno)
+#
+# long_description = read('README.rst')
 
 
 with open('README.rst') as readme_file:
@@ -64,8 +65,8 @@ setup(
     author="Eder Santana",
     author_email='edercsjr@gmail.com',
     url='https://github.com/edersantana/seya',
-    packages=['seya', 'seya.layers'],
-    package_dir={'seya': 'seya'},
+    packages=find_packages(),
+    # package_dir={'seya': 'seya'},
     include_package_data=True,
     install_requires=requirements,
     license="MIT",
@@ -83,10 +84,10 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ],
-    cmdclass={'test': PyTest},
+    # cmdclass={'test': PyTest},
     extras_require={
         'testing': ['pytest'],
     },
-    test_suite='tests',
-    tests_require=test_requirements
+    # test_suite='tests',
+    # tests_require=test_requirements
 )

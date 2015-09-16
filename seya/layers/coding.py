@@ -9,6 +9,7 @@ from keras import activations, initializations
 from keras.utils.theano_utils import alloc_zeros_matrix, sharedX
 
 from ..utils import diff_abs, theano_rng
+from ..regularizers import SimpleCost
 srng = theano_rng()
 
 floatX = theano.config.floatX

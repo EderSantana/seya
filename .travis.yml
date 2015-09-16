@@ -1,3 +1,4 @@
+sudo: false
 language: python
 python:
   - "2.7"
@@ -10,16 +11,22 @@ before_install:
    - ./miniconda.sh -b
    - export PATH=/home/travis/miniconda/bin:$PATH
    - conda update --yes conda
-   - git clone https://github.com/lisa-lab/pylearn2.git $PWD/pylearn2
+   - git clone https://github.com/fchollet/keras.git $PWD/keras
    - export PYTHONPATH=$PWD/keras
+#install:
+## # I copyed most of this from Theano rep
+#    - conda create --yes -q -n pyenv mkl python=2.7 numpy scipy theano matplotlib nose pyparsing pip
+#    - source activate pyenv
+#    - pip install .
+#    - pip install coverage
+#    - pip install coveralls
+#script:
+#    - coverage run --source=seya setup.py test
 install:
-# # I copyed most of this from Theano rep
-    - conda create --yes -q -n pyenv mkl python=2.7 numpy scipy theano matplotlib nose pyparsing pip
-    - source activate pyenv
-    - pip install .
-    - pip install coverage
-    - pip install coveralls
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib pandas pytest h5py theano
+  - pip install pytest-cov python-coveralls
+# command to run tests
 script:
-    - coverage run --source=seya setup.py test
+  - PYTHONPATH=$PWD:$PYTHONPATH py.test -v --cov-report term-missing --cov seya tests/
 after_success:
-    coveralls
+  - coveralls
