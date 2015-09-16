@@ -4,6 +4,10 @@ from keras.layers.core import Activation
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 
+def alloc_ones_matrix(*dims):
+    return T.alloc(np.cast[theano.config.floatX](1.), *dims)
+
+
 def theano_rng(seed=123):
     return MRG_RandomStreams(seed=seed)
 

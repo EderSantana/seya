@@ -26,8 +26,10 @@ class DRAW(Recurrent):
     theano_rng = theano_rng()
 
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
-                 inner_rnn='gru', truncate_gradient=-1, return_sequences=False):
-        self.input = [T.tensor4(), T.tensor3()]
+                 inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
+                 canvas_activation=T.nnet.sigmoid):
+        # self.input = [T.tensor4(), T.tensor3()]   # should be this, but crashes
+                                                    # the compiler if I do it.
         self.h_dim = h_dim  # this is 256 for MNIST
         self.z_dim = z_dim  # this is 100 for MNIST
         self.input_shape = input_shape
@@ -35,6 +37,7 @@ class DRAW(Recurrent):
         self.N_dec = N_dec
         self.truncate_gradient = truncate_gradient
         self.return_sequences = return_sequences
+        self.canvas_activation = canvas_activation
 
         self.height = input_shape[1]
         self.width = input_shape[2]
@@ -112,7 +115,7 @@ class DRAW(Recurrent):
         if self._train:
             sample = mean + eps * sigma
         else:
-            sample = mean
+            sample = mean + 0. * eps
         kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
         return sample, kl
 
@@ -133,14 +136,17 @@ class DRAW(Recurrent):
 
     def _get_initial_states(self, X):
         batch_size = X.shape[0]
-        canvas = self.init_canvas.dimshuffle('x', 0, 1, 2, 3).repeat(batch_size,
-                                                                     axis=0)
+        canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
+                                                                  axis=0)
         init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
         init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        # canvas = alloc_zeros_matrix(*X.shape) + self.init_canvas[None, :, :, :]
+        # init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim) + self.init_h_enc[None, :]
+        # init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim) + self.init_h_dec[None, :]
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
-        x_hat = x - T.nnet.sigmoid(canvas)
+        x_hat = x - self.canvas_activation(canvas)
         gx, gy, sigma2, delta, gamma = self._get_attention_params(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
@@ -177,7 +183,7 @@ class DRAW(Recurrent):
                                 truncate_gradient=self.truncate_gradient)
         kl = outputs[-1].mean(axis=(1, 2)).sum()
         self.regularizers = [SimpleCost(kl), ]
-        self.updates = updates
+        # self.updates = updates
         if self.return_sequences:
             return outputs[0].dimshuffle(1, 0, 2, 3, 4)
         else:
