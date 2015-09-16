@@ -2,7 +2,7 @@
 Seya
 ===============================
 
-.. image:: https://img.shields.io/travis/edersantana/seya.svg
+.. image:: https://travis-ci.org/EderSantana/seya.svg?branch=master
         :target: https://travis-ci.org/edersantana/seya
 
 .. image:: https://img.shields.io/pypi/v/seya.svg
@@ -15,7 +15,7 @@ Bringing up some extra Cosmo to Keras.
 * Documentation: https://seya.readthedocs.org.
 
 Why Seya?
---------
+---------
 Those smart guys may know a lot about ancient greek mathematicians and poetry. But the first thing I remember about Greece is my childhood favorite anime, Saint Seya.
 
 Features
