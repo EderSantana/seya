@@ -167,10 +167,10 @@ class DRAW(Recurrent):
                                         h_dec)
 
         gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_params(
-            h_dec, self.L_dec, self.b_dec, self.N_dec)
+            new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
-        new_canvas = canvas + self._write(h_dec, gamma_w, Fx_w, Fy_w)
+        new_canvas = canvas + self._write(new_h_dec, gamma_w, Fx_w, Fy_w)
         return new_canvas, new_h_enc, new_h_dec, kl
 
     def get_output(self, train=False):
