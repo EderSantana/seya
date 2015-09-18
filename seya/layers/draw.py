@@ -64,8 +64,8 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
-            self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
+        # self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def init_updates(self):
         self.get_output()  # populate regularizers list
@@ -119,7 +119,7 @@ class DRAW(Recurrent):
             sample = mean + eps * sigma
         else:
             sample = mean + 0. * eps
-        kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
+        kl = -.5 - logsigma + .5 * (mean**2 + sigma**2) / T.exp(2)
         return sample, kl
 
     def _get_rnn_input(self, x, rnn):
