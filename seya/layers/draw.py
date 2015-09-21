@@ -2,7 +2,7 @@ import theano.tensor as T
 from theano import scan
 
 from keras.layers.recurrent import GRU, Recurrent
-from keras.utils.theano_utils import shared_zeros
+from keras.utils.theano_utils import shared_zeros  # , alloc_zeros_matrix
 
 from ..utils import theano_rng
 from ..regularizers import SimpleCost
@@ -28,8 +28,7 @@ class DRAW(Recurrent):
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
                  canvas_activation=T.nnet.sigmoid):
-        # self.input = [T.tensor4(), T.tensor3()]   # should be this, but crashes
-                                                    # the compiler if I do it.
+        self.input = T.tensor4()
         self.h_dim = h_dim  # this is 256 for MNIST
         self.z_dim = z_dim  # this is 100 for MNIST
         self.input_shape = input_shape
@@ -37,6 +36,7 @@ class DRAW(Recurrent):
         self.N_dec = N_dec
         self.truncate_gradient = truncate_gradient
         self.return_sequences = return_sequences
+        self.n_steps = n_steps
         self.canvas_activation = canvas_activation
 
         self.height = input_shape[1]
@@ -64,20 +64,20 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
-        # self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
+            self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def init_updates(self):
-        self.get_output()  # populate regularizers list
+        self.get_output(train=True)  # populate regularizers list
 
     def _get_attention_params(self, h, L, b, N):
-        p = T.tanh(T.dot(h, L) + b)
+        p = T.dot(h, L) + b
         gx = self.width * (p[:, 0]+1) / 2.
         gy = self.height * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
         delta = T.exp(p[:, 3] * (max(self.width, self.height) - 1) / (N - 1))
         gamma = T.exp(p[:, 4])
-        return gx, gy, sigma2, delta, gamma
+        return gx.flatten(), gy.flatten(), sigma2.flatten(), delta.flatten(), gamma.flatten()
 
     def _get_filterbank(self, gx, gy, sigma2, delta, N):
         eps = 1e-6
@@ -110,17 +110,16 @@ class DRAW(Recurrent):
 
     def _get_sample(self, h, eps):
         mean = T.tanh(T.dot(h, self.W_mean) + self.b_mean)
-        # TODO refactor to get user input instead
-        # Solve TODO
         # eps = self.theano_rng.normal(avg=0., std=1., size=mean.shape)
         logsigma = T.tanh(T.dot(h, self.W_sigma) + self.b_sigma)
         sigma = T.exp(logsigma)
-        if self._train:
+        if self._train_state:
             sample = mean + eps * sigma
         else:
-            sample = mean + 0. * eps
-        kl = -.5 - logsigma + .5 * (mean**2 + sigma**2) / T.exp(2)
-        return sample, kl
+            sample = mean + eps * sigma
+        kl = 1. - .5 - logsigma + .5 * (mean**2 + sigma**2) / T.exp(2.)
+        # kl = .5 * (mean**2 + sigma**2 - logsigma - 1)
+        return sample, kl.sum(axis=-1)
 
     def _get_rnn_input(self, x, rnn):
         if self.inner_rnn == 'gru':
@@ -143,9 +142,9 @@ class DRAW(Recurrent):
                                                                   axis=0)
         init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
         init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        # canvas = alloc_zeros_matrix(*X.shape) + self.init_canvas[None, :, :, :]
-        # init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim) + self.init_h_enc[None, :]
-        # init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim) + self.init_h_dec[None, :]
+        # canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
+        # init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
+        # init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
@@ -155,7 +154,7 @@ class DRAW(Recurrent):
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
         read_x_hat = self._read(x_hat, gamma, Fx, Fy).flatten(ndim=2)
-        enc_input = T.concatenate([read_x, read_x_hat, h_dec], axis=-1)
+        enc_input = T.concatenate([read_x, read_x_hat, h_dec.flatten(ndim=2)], axis=1)
 
         x_enc_z, x_enc_r, x_enc_h = self._get_rnn_input(enc_input, self.enc)
         new_h_enc = self._get_rnn_state(self.enc, x_enc_z, x_enc_r, x_enc_h,
@@ -174,7 +173,7 @@ class DRAW(Recurrent):
         return new_canvas, new_h_enc, new_h_dec, kl
 
     def get_output(self, train=False):
-        self._train = train
+        self._train_state = train
         X, eps = self.get_input(train)
         eps = eps.dimshuffle(1, 0, 2)
         canvas, init_enc, init_dec = self._get_initial_states(X)
@@ -183,9 +182,13 @@ class DRAW(Recurrent):
                                 sequences=eps,
                                 outputs_info=[canvas, init_enc, init_dec, None],
                                 non_sequences=[X] + self.params,
+                                # n_steps=self.n_steps,
                                 truncate_gradient=self.truncate_gradient)
-        kl = outputs[-1].mean(axis=(1, 2)).sum()
-        self.regularizers = [SimpleCost(kl), ]
+        if train:
+            # kl = outputs[-1].mean(axis=(1, 2)).sum()
+            kl = outputs[-1].sum(axis=0).mean()
+            self.updates = updates
+            self.regularizers = [SimpleCost(kl), ]
         # self.updates = updates
         if self.return_sequences:
             return outputs[0].dimshuffle(1, 0, 2, 3, 4)
