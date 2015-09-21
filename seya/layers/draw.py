@@ -101,7 +101,7 @@ class DRAW(Recurrent):
         return gamma[:, None, None, None] * FyxFx
 
     def _write(self, h, gamma, Fx, Fy):
-        write_patch = T.tanh(T.dot(h, self.W_patch) + self.b_patch)
+        write_patch = T.dot(h, self.W_patch) + self.b_patch
         write_patch = write_patch.reshape((h.shape[0], self.input_shape[0],
                                            self.N_dec, self.N_dec))
         Fyx = (Fy[:, None, :, :, None] * write_patch[:, :, :, None, :]).sum(axis=2)
@@ -109,9 +109,9 @@ class DRAW(Recurrent):
         return FyxFx / gamma[:, None, None, None]
 
     def _get_sample(self, h, eps):
-        mean = T.tanh(T.dot(h, self.W_mean) + self.b_mean)
+        mean = T.dot(h, self.W_mean) + self.b_mean
         # eps = self.theano_rng.normal(avg=0., std=1., size=mean.shape)
-        logsigma = T.tanh(T.dot(h, self.W_sigma) + self.b_sigma)
+        logsigma = T.dot(h, self.W_sigma) + self.b_sigma
         sigma = T.exp(logsigma)
         if self._train_state:
             sample = mean + eps * sigma
