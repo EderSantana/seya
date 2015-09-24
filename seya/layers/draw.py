@@ -1,8 +1,8 @@
 import theano.tensor as T
 from theano import scan
 
-from keras.layers.recurrent import GRU, Recurrent
-from keras.utils.theano_utils import shared_zeros  # , alloc_zeros_matrix
+from keras.layers.recurrent import GRU, Recurrent, LSTM
+from keras.utils.theano_utils import shared_zeros, alloc_zeros_matrix
 
 from ..utils import theano_rng
 from ..regularizers import SimpleCost
@@ -46,6 +46,9 @@ class DRAW(Recurrent):
         if inner_rnn == 'gru':
             self.enc = GRU(input_dim=2*self.N_enc**2 + h_dim, output_dim=h_dim)
             self.dec = GRU(input_dim=z_dim, output_dim=h_dim)
+        elif inner_rnn == 'lstm':
+            self.enc = LSTM(input_dim=2*self.N_enc**2 + h_dim, output_dim=h_dim)
+            self.dec = LSTM(input_dim=z_dim, output_dim=h_dim)
         else:
             raise ValueError('This type of rnn is not supported')
 
@@ -64,18 +67,18 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
-            self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
+        # , self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
 
     def _get_attention_params(self, h, L, b, N):
         p = T.dot(h, L) + b
-        gx = self.width * (p[:, 0]+1) / 2.
-        gy = self.height * (p[:, 1]+1) / 2.
+        gx = (self.width + 1) * (p[:, 0]+1) / 2.
+        gy = (self.height + 1) * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
-        delta = T.exp(p[:, 3] * (max(self.width, self.height) - 1) / (N - 1))
+        delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1)
         gamma = T.exp(p[:, 4])
         return gx.flatten(), gy.flatten(), sigma2.flatten(), delta.flatten(), gamma.flatten()
 
@@ -129,25 +132,38 @@ class DRAW(Recurrent):
             x_z = T.dot(x, rnn.W_z) + rnn.b_z
             x_r = T.dot(x, rnn.W_r) + rnn.b_r
             x_h = T.dot(x, rnn.W_h) + rnn.b_h
-        return x_z, x_r, x_h
+            return x_z, x_r, x_h
+
+        elif self.inner_rnn == 'lstm':
+            xi = T.dot(x, rnn.W_i) + rnn.b_i
+            xf = T.dot(x, rnn.W_f) + rnn.b_f
+            xc = T.dot(x, rnn.W_c) + rnn.b_c
+            xo = T.dot(x, rnn.W_o) + rnn.b_o
+            return xi, xf, xc, xo
 
     def _get_rnn_state(self, rnn, *args):
+        mask = 1.  # no masking
         if self.inner_rnn == 'gru':
             x_z, x_r, x_h, h_tm1 = args
-            mask = 1.  # no masking
             h = rnn._step(x_z, x_r, x_h, mask, h_tm1,
                           rnn.U_z, rnn.U_r, rnn.U_h)
-        return h
+            return h
+        elif self.inner_rnn == 'lstm':
+            xi, xf, xc, xo, h_tm1, cell_tm1 = args
+            h, cell = rnn._step(xi, xf, xo, xc, mask,
+                                h_tm1, cell_tm1,
+                                rnn.U_i, rnn.U_f, rnn.U_o, rnn.U_c)
+            return h, cell
 
     def _get_initial_states(self, X):
-        batch_size = X.shape[0]
-        canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
-                                                                  axis=0)
-        init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        # canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
-        # init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
-        # init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
+        # batch_size = X.shape[0]
+        # canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
+        #                                                           axis=0)
+        # init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        # init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
+        init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
+        init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
@@ -176,18 +192,57 @@ class DRAW(Recurrent):
         new_canvas = canvas + self._write(write_patch, gamma_w, Fx_w, Fy_w)
         return new_canvas, new_h_enc, new_h_dec, kl
 
+    def _step_lstm(self, eps, canvas, h_enc, cell_enc,
+                   h_dec, cell_dec, x, *args):
+        x_hat = x - self.canvas_activation(canvas)
+        gx, gy, sigma2, delta, gamma = self._get_attention_params(
+            h_dec, self.L_enc, self.b_enc, self.N_enc)
+        Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
+        read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
+        read_x_hat = self._read(x_hat, gamma, Fx, Fy).flatten(ndim=2)
+        enc_input = T.concatenate([read_x, read_x_hat, h_dec.flatten(ndim=2)], axis=1)
+
+        x_enc_i, x_enc_f, x_enc_c, x_enc_o = self._get_rnn_input(enc_input,
+                                                                 self.enc)
+        new_h_enc, new_cell_enc = self._get_rnn_state(
+            self.enc, x_enc_i, x_enc_f, x_enc_c, x_enc_o, h_enc, cell_enc)
+        sample, kl = self._get_sample(new_h_enc, eps)
+
+        x_dec_i, x_dec_f, x_dec_c, x_dec_o = self._get_rnn_input(sample,
+                                                                 self.dec)
+        new_h_dec, new_cell_dec = self._get_rnn_state(
+            self.dec, x_dec_i, x_dec_f, x_dec_c, x_dec_o, h_dec, cell_dec)
+
+        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_params(
+            new_h_dec, self.L_dec, self.b_dec, self.N_dec)
+        Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
+                                          self.N_dec)
+        write_patch = self._get_patch(new_h_dec)
+        new_canvas = canvas + self._write(write_patch, gamma_w, Fx_w, Fy_w)
+        return new_canvas, new_h_enc, new_cell_enc, new_h_dec, new_cell_dec, kl
+
     def get_output(self, train=False):
         self._train_state = train
-        X, eps = self.get_input(train)
+        X, eps = self.get_input(train).values()
         eps = eps.dimshuffle(1, 0, 2)
         canvas, init_enc, init_dec = self._get_initial_states(X)
 
-        outputs, updates = scan(self._step,
-                                sequences=eps,
-                                outputs_info=[canvas, init_enc, init_dec, None],
-                                non_sequences=[X] + self.params,
-                                # n_steps=self.n_steps,
-                                truncate_gradient=self.truncate_gradient)
+        if self.inner_rnn == 'gru':
+            outputs, updates = scan(self._step,
+                                    sequences=eps,
+                                    outputs_info=[canvas, init_enc, init_dec, None],
+                                    non_sequences=[X, ] + self.params,
+                                    # n_steps=self.n_steps,
+                                    truncate_gradient=self.truncate_gradient)
+
+        elif self.inner_rnn == 'lstm':
+            outputs, updates = scan(self._step_lstm,
+                                    sequences=eps,
+                                    outputs_info=[canvas, init_enc, init_enc,
+                                                  init_dec, init_dec, None],
+                                    non_sequences=[X, ] + self.params,
+                                    truncate_gradient=self.truncate_gradient)
+
         kl = outputs[-1].sum(axis=0).mean()
         if train:
             # self.updates = updates
