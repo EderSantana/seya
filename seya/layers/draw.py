@@ -100,10 +100,13 @@ class DRAW(Recurrent):
         FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
         return gamma[:, None, None, None] * FyxFx
 
-    def _write(self, h, gamma, Fx, Fy):
+    def _get_patch(self, h):
         write_patch = T.dot(h, self.W_patch) + self.b_patch
         write_patch = write_patch.reshape((h.shape[0], self.input_shape[0],
                                            self.N_dec, self.N_dec))
+        return write_patch
+
+    def _write(self, write_patch, gamma, Fx, Fy):
         Fyx = (Fy[:, None, :, :, None] * write_patch[:, :, :, None, :]).sum(axis=2)
         FyxFx = (Fyx[:, :, :, :, None] * Fx[:, None, None, :, :]).sum(axis=3)
         return FyxFx / gamma[:, None, None, None]
@@ -117,7 +120,7 @@ class DRAW(Recurrent):
             sample = mean + eps * sigma
         else:
             sample = mean + eps * sigma
-        kl = 1. - .5 - logsigma + .5 * (mean**2 + sigma**2) / T.exp(2.)
+        kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
         # kl = .5 * (mean**2 + sigma**2 - logsigma - 1)
         return sample, kl.sum(axis=-1)
 
@@ -169,7 +172,8 @@ class DRAW(Recurrent):
             new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
-        new_canvas = canvas + self._write(new_h_dec, gamma_w, Fx_w, Fy_w)
+        write_patch = self._get_patch(new_h_dec)
+        new_canvas = canvas + self._write(write_patch, gamma_w, Fx_w, Fy_w)
         return new_canvas, new_h_enc, new_h_dec, kl
 
     def get_output(self, train=False):
@@ -184,13 +188,11 @@ class DRAW(Recurrent):
                                 non_sequences=[X] + self.params,
                                 # n_steps=self.n_steps,
                                 truncate_gradient=self.truncate_gradient)
+        kl = outputs[-1].sum(axis=0).mean()
         if train:
-            # kl = outputs[-1].mean(axis=(1, 2)).sum()
-            kl = outputs[-1].sum(axis=0).mean()
-            self.updates = updates
+            # self.updates = updates
             self.regularizers = [SimpleCost(kl), ]
-        # self.updates = updates
         if self.return_sequences:
-            return outputs[0].dimshuffle(1, 0, 2, 3, 4)
+            return [outputs[0].dimshuffle(1, 0, 2, 3, 4), kl]
         else:
-            return outputs[0][-1]
+            return [outputs[0][-1], kl]
