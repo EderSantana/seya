@@ -15,7 +15,8 @@ def _get_reversed_input(self, train=False):
 
 
 class Bidirectional(Recurrent):
-    def __init__(self, forward, backward):
+    def __init__(self, forward, backward, return_sequences=False,
+                 truncate_gradient=-1):
         super(Bidirectional, self).__init__()
         self.forward = forward
         self.backward = backward
@@ -23,6 +24,17 @@ class Bidirectional(Recurrent):
         self.input = T.tensor3()
         self.forward.input = self.input
         self.backward.input = self.input
+
+        rs = (self.return_sequences, forward.return_sequences,
+              backward.return_sequences)
+        if rs[1:] != rs[:-1]:
+            raise ValueError("Make sure 'return_sequences' is equal for self," +
+                             " forward and backward.")
+        tg = (self.truncate_gradient, forward.truncate_gradient,
+              backward.truncate_gradient)
+        if tg[1:] != tg[:-1]:
+            raise ValueError("Make sure 'truncate_gradient' is equal for self," +
+                             " forward and backward.")
 
     def set_previous(self, layer):
         if not self.supports_masked_input() and layer.get_output_mask() is not None:
