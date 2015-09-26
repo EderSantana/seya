@@ -24,6 +24,7 @@ Features
 * Spatial Transformer Networks example
 * Recursive graph WIP_
 * Sparse coding
-* Bidirectional RNN example
+* Bidirectional RNN example_
 
-.. _WIP: https://github.com/EderSantana/seya/blob/master/examples/imdb_brnn.py
+.. _WIP: https://github.com/fchollet/keras/issues/620
+.. _example: https://github.com/EderSantana/seya/blob/master/examples/imdb_brnn.py
