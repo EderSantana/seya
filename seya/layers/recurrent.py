@@ -24,6 +24,8 @@ class Bidirectional(Recurrent):
         self.input = T.tensor3()
         self.forward.input = self.input
         self.backward.input = self.input
+        self.return_sequences = return_sequences
+        self.truncate_gradient = truncate_gradient
 
         rs = (self.return_sequences, forward.return_sequences,
               backward.return_sequences)
