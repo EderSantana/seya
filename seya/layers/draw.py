@@ -44,10 +44,10 @@ class DRAW(Recurrent):
 
         self.inner_rnn = inner_rnn
         if inner_rnn == 'gru':
-            self.enc = GRU(input_dim=2*self.N_enc**2 + h_dim, output_dim=h_dim)
+            self.enc = GRU(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim, output_dim=h_dim)
             self.dec = GRU(input_dim=z_dim, output_dim=h_dim)
         elif inner_rnn == 'lstm':
-            self.enc = LSTM(input_dim=2*self.N_enc**2 + h_dim, output_dim=h_dim)
+            self.enc = LSTM(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim, output_dim=h_dim)
             self.dec = LSTM(input_dim=z_dim, output_dim=h_dim)
         else:
             raise ValueError('This type of rnn is not supported')
@@ -67,23 +67,23 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
-        # , self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
+            self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
 
     def _get_attention_params(self, h, L, b, N):
         p = T.dot(h, L) + b
-        gx = (self.width + 1) * (p[:, 0]+1) / 2.
-        gy = (self.height + 1) * (p[:, 1]+1) / 2.
+        gx = self.width * (p[:, 0]+1) / 2.
+        gy = self.height * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
         delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1)
         gamma = T.exp(p[:, 4])
         return gx.flatten(), gy.flatten(), sigma2.flatten(), delta.flatten(), gamma.flatten()
 
     def _get_filterbank(self, gx, gy, sigma2, delta, N):
-        eps = 1e-6
+        small = 1e-4
         i = T.arange(N)
         a = T.arange(self.width)
         b = T.arange(self.height)
@@ -92,9 +92,9 @@ class DRAW(Recurrent):
         my = gy[:, None] + delta[:, None] * (i - N/2 - .5)
 
         Fx = T.exp(-(a - mx[:, :, None])**2 / 2. / sigma2[:, None, None])
-        Fx /= (Fx.sum(axis=-1)[:, :, None] + eps)
+        Fx /= (Fx.sum(axis=-1)[:, :, None] + small)
         Fy = T.exp(-(b - my[:, :, None])**2 / 2. / sigma2[:, None, None])
-        Fy /= (Fy.sum(axis=-1)[:, :, None] + eps)
+        Fy /= (Fy.sum(axis=-1)[:, :, None] + small)
         return Fx, Fy
 
     def _read(self, x, gamma, Fx, Fy):
@@ -125,7 +125,7 @@ class DRAW(Recurrent):
             sample = mean + eps * sigma
         kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
         # kl = .5 * (mean**2 + sigma**2 - logsigma - 1)
-        return sample, kl.sum(axis=-1)
+        return sample, kl
 
     def _get_rnn_input(self, x, rnn):
         if self.inner_rnn == 'gru':
@@ -156,11 +156,11 @@ class DRAW(Recurrent):
             return h, cell
 
     def _get_initial_states(self, X):
-        # batch_size = X.shape[0]
-        # canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
-        #                                                           axis=0)
-        # init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        # init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        #batch_size = X.shape[0]
+        #canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
+        #                                                          axis=0)
+        #init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        #init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
         canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
         init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
         init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
@@ -243,10 +243,10 @@ class DRAW(Recurrent):
                                     non_sequences=[X, ] + self.params,
                                     truncate_gradient=self.truncate_gradient)
 
-        kl = outputs[-1].sum(axis=0).mean()
-        if train:
+        #kl = outputs[-1].sum(axis=0).mean()
+        #if train:
             # self.updates = updates
-            self.regularizers = [SimpleCost(kl), ]
+        #    self.regularizers = [SimpleCost(kl), ]
         if self.return_sequences:
             return [outputs[0].dimshuffle(1, 0, 2, 3, 4), kl]
         else:
