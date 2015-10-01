@@ -87,11 +87,11 @@ class StatefulGRU(GRU):
         outputs, updates = theano.scan(
             self._step,
             sequences=[x_z, x_r, x_h, padded_mask],
-            outputs_info=self.h,
+            outputs_info=self.h[:X.shape[1]],
             non_sequences=[self.U_z, self.U_r, self.U_h],
             truncate_gradient=self.truncate_gradient)
 
-        self.updates = ((self.h, outputs[-1]))  # initial state of next batch
+        self.updates = ((self.h, outputs[-1]), )  # initial state of next batch
                                                 # is the last state of this
                                                 # batch
         if self.return_sequences:
