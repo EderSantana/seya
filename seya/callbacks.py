@@ -2,6 +2,23 @@ import numpy as np
 from keras.callbacks import Callback
 
 
+class ResetRNNState(Callback):
+    """
+    This is supposed to be used with stateful RNNs like
+    seya.layers.recurrent.StatefulGRU
+
+    h: the rnn state
+    func: a function that returns true when the state should be reset to zero
+    """
+    def __init__(self, h, func):
+        self.h = h
+        self.func = func
+
+    def on_batch_end(self, batch, logs={}):
+        if self.func(batch, logs):
+            self.h.set_value(self.h.get_value()*0)
+
+
 class RenormalizeWeight(Callback):
     def __init__(self, W, transpose=False):
         Callback.__init__(self)
