@@ -3,6 +3,10 @@ from keras.regularizers import Regularizer
 
 
 class GaussianKL(Regularizer):
+    """ KL-divergence between two gaussians.
+    Useful for Variational AutoEncoders.
+    Use this as an activation regularizer
+    """
     def set_param(self, p):
         self.p = p
 
@@ -11,9 +15,9 @@ class GaussianKL(Regularizer):
 
     def __call__(self, loss):
         # See Variational Auto-Encoding Bayes by Kingma and Welling.
-        mean, sigma = self.layer.get_output(True)
-        kl = -.5 - self.logsigma + .5 * (mean**2
-                                         + T.exp(2 * self.logsigma))
+        mean, logsigma = self.layer.get_output(True)
+        kl = -.5 - logsigma + .5 * (mean**2
+                                    + T.exp(2 * logsigma))
         loss += kl.mean()
         return loss
 

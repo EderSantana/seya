@@ -27,7 +27,8 @@ class DRAW(Recurrent):
 
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
-                 canvas_activation=T.nnet.sigmoid):
+                 canvas_activation=T.nnet.sigmoid, init='glorot_uniform',
+                 inner_init='orthogonal'):
         self.input = T.tensor4()
         self.h_dim = h_dim  # this is 256 for MNIST
         self.z_dim = z_dim  # this is 100 for MNIST
@@ -44,13 +45,20 @@ class DRAW(Recurrent):
 
         self.inner_rnn = inner_rnn
         if inner_rnn == 'gru':
-            self.enc = GRU(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim, output_dim=h_dim)
-            self.dec = GRU(input_dim=z_dim, output_dim=h_dim)
+            self.enc = GRU(input_dim=self.input_shape[0]*2*self.N_enc**2 +
+                           h_dim, output_dim=h_dim, init=init,
+                           inner_init=inner_init)
+            self.dec = GRU(input_dim=z_dim, output_dim=h_dim, init=init,
+                           inner_init=inner_init)
+
         elif inner_rnn == 'lstm':
-            self.enc = LSTM(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim, output_dim=h_dim)
-            self.dec = LSTM(input_dim=z_dim, output_dim=h_dim)
+            self.enc = LSTM(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim,
+                            output_dim=h_dim, init=init,
+                            inner_init=inner_init)
+            self.dec = LSTM(input_dim=z_dim, output_dim=h_dim, init=init,
+                            inner_init=inner_init)
         else:
-            raise ValueError('This type of rnn is not supported')
+            raise ValueError('This type of inner_rnn is not supported')
 
         self.init_canvas = shared_zeros(input_shape)  # canvas and hidden state
         self.init_h_enc = shared_zeros((h_dim))     # initial values
@@ -67,8 +75,8 @@ class DRAW(Recurrent):
         self.b_sigma = shared_zeros((z_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
-            self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
+            # self.init_canvas, self.init_h_enc, self.init_h_dec]
 
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
@@ -78,9 +86,9 @@ class DRAW(Recurrent):
         gx = self.width * (p[:, 0]+1) / 2.
         gy = self.height * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
-        delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1)
+        delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1.)
         gamma = T.exp(p[:, 4])
-        return gx.flatten(), gy.flatten(), sigma2.flatten(), delta.flatten(), gamma.flatten()
+        return gx, gy, sigma2, delta, gamma
 
     def _get_filterbank(self, gx, gy, sigma2, delta, N):
         small = 1e-4
@@ -88,8 +96,8 @@ class DRAW(Recurrent):
         a = T.arange(self.width)
         b = T.arange(self.height)
 
-        mx = gx[:, None] + delta[:, None] * (i - N/2 - .5)
-        my = gy[:, None] + delta[:, None] * (i - N/2 - .5)
+        mx = gx[:, None] + delta[:, None] * (i - N/2. - .5)
+        my = gy[:, None] + delta[:, None] * (i - N/2. - .5)
 
         Fx = T.exp(-(a - mx[:, :, None])**2 / 2. / sigma2[:, None, None])
         Fx /= (Fx.sum(axis=-1)[:, :, None] + small)
@@ -122,10 +130,10 @@ class DRAW(Recurrent):
         if self._train_state:
             sample = mean + eps * sigma
         else:
-            sample = mean + eps * sigma
+            sample = mean + 0 * eps * sigma
         kl = -.5 - logsigma + .5 * (mean**2 + sigma**2)
         # kl = .5 * (mean**2 + sigma**2 - logsigma - 1)
-        return sample, kl
+        return sample, kl.sum(axis=-1)
 
     def _get_rnn_input(self, x, rnn):
         if self.inner_rnn == 'gru':
@@ -156,14 +164,16 @@ class DRAW(Recurrent):
             return h, cell
 
     def _get_initial_states(self, X):
-        #batch_size = X.shape[0]
-        #canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
-        #                                                          axis=0)
-        #init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        #init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
-        canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
-        init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
-        init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
+        if self.inner_rnn == 'gru':
+            batch_size = X.shape[0]
+            canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
+                                                                      axis=0)
+            init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+            init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        else:
+            canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
+            init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
+            init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
         return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
@@ -173,7 +183,7 @@ class DRAW(Recurrent):
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
         read_x_hat = self._read(x_hat, gamma, Fx, Fy).flatten(ndim=2)
-        enc_input = T.concatenate([read_x, read_x_hat, h_dec.flatten(ndim=2)], axis=1)
+        enc_input = T.concatenate([read_x, read_x_hat, h_dec], axis=-1)
 
         x_enc_z, x_enc_r, x_enc_h = self._get_rnn_input(enc_input, self.enc)
         new_h_enc = self._get_rnn_state(self.enc, x_enc_z, x_enc_r, x_enc_h,
@@ -238,15 +248,15 @@ class DRAW(Recurrent):
         elif self.inner_rnn == 'lstm':
             outputs, updates = scan(self._step_lstm,
                                     sequences=eps,
-                                    outputs_info=[canvas, init_enc, init_enc,
-                                                  init_dec, init_dec, None],
+                                    outputs_info=[0*canvas, 0*init_enc, 0*init_enc,
+                                                  0*init_dec, 0*init_dec, None],
                                     non_sequences=[X, ] + self.params,
                                     truncate_gradient=self.truncate_gradient)
 
-        #kl = outputs[-1].sum(axis=0).mean()
-        #if train:
+        kl = outputs[-1].sum(axis=0).mean()
+        if train:
             # self.updates = updates
-        #    self.regularizers = [SimpleCost(kl), ]
+            self.regularizers = [SimpleCost(kl), ]
         if self.return_sequences:
             return [outputs[0].dimshuffle(1, 0, 2, 3, 4), kl]
         else:
