@@ -16,7 +16,9 @@ Bringing up some extra Cosmo to Keras.
 
 Why Seya?
 ---------
-Those smart guys may know a lot about ancient greek mathematicians and poetry. But the first thing I remember about Greece is my childhood favorite anime, Saint Seya.
+Those smart guys may know a lot about ancient greek mathematicians and poetry.
+But the first thing I remember about Greece is my childhood favorite anime, Saint Seiya.
+I misspelled it as Seya and now the name is 1/5 shorter.
 
 Features
 --------
