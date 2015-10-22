@@ -53,11 +53,12 @@ for i, sentence in enumerate(sentences):
 # build the model: 2 stacked Stateful GRUs
 print('Build model...')
 model = Sequential()
-model.add(SGRU(len(chars), batch_size=batch_size, output_dim=512, return_sequences=True))
+model.add(SGRU(input_shape=(None, len(chars)), batch_size=batch_size,
+               output_dim=512, return_sequences=True))
 model.add(Dropout(0.2))
-model.add(SGRU(512, batch_size=batch_size, output_dim=512, return_sequences=False))
+model.add(SGRU(batch_size=batch_size, output_dim=512, return_sequences=False))
 model.add(Dropout(0.2))
-model.add(Dense(512, len(chars)))
+model.add(Dense(len(chars)))
 model.add(Activation('softmax'))
 
 # define callbacks to reset state after every 4 batches

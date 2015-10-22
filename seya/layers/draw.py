@@ -13,8 +13,8 @@ class DRAW(Recurrent):
 
     Parameters:
     ===========
-    h_dim : encoder/decoder dimension
-    z_dim : random sample dimension (reparametrization trick output)
+    output_dim : encoder/decoder dimension
+    code_dim : random sample dimension (reparametrization trick output)
     input_shape : (n_channels, rows, cols)
     N_enc : Size of the encoder's filter bank (MNIST default: 2)
     N_dec : Size of the decoder's filter bank (MNIST default: 5)
@@ -25,58 +25,85 @@ class DRAW(Recurrent):
     '''
     theano_rng = theano_rng()
 
-    def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
+    def __init__(self, output_dim, code_dim, N_enc=2, N_dec=5, n_steps=64,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
                  canvas_activation=T.nnet.sigmoid, init='glorot_uniform',
-                 inner_init='orthogonal'):
-        self.input = T.tensor4()
-        self.h_dim = h_dim  # this is 256 for MNIST
-        self.z_dim = z_dim  # this is 100 for MNIST
-        self.input_shape = input_shape
+                 inner_init='orthogonal', input_shape=None, **kwargs):
+        self.output_dim = output_dim  # this is 256 for MNIST
+        self.code_dim = code_dim  # this is 100 for MNIST
         self.N_enc = N_enc
         self.N_dec = N_dec
         self.truncate_gradient = truncate_gradient
         self.return_sequences = return_sequences
         self.n_steps = n_steps
         self.canvas_activation = canvas_activation
+        self.init = init
+        self.inner_init = inner_init
+        self.inner_rnn = inner_rnn
 
         self.height = input_shape[1]
         self.width = input_shape[2]
 
-        self.inner_rnn = inner_rnn
-        if inner_rnn == 'gru':
-            self.enc = GRU(input_dim=self.input_shape[0]*2*self.N_enc**2 +
-                           h_dim, output_dim=h_dim, init=init,
-                           inner_init=inner_init)
-            self.dec = GRU(input_dim=z_dim, output_dim=h_dim, init=init,
-                           inner_init=inner_init)
+        self._input_shape = input_shape
+        super(DRAW, self).__init__(**kwargs)
+
+    def build(self):
+        self.input = T.tensor4()
+
+        if self.inner_rnn == 'gru':
+            self.enc = GRU(
+                input_length=self.n_steps,
+                input_dim=self._input_shape[0]*2*self.N_enc**2 + self.output_dim,
+                output_dim=self.output_dim, init=self.init,
+                inner_init=self.inner_init)
+            self.dec = GRU(
+                input_length=self.n_steps,
+                input_dim=self.code_dim, output_dim=self.output_dim,
+                init=self.init,
+                inner_init=self.inner_init)
 
         elif inner_rnn == 'lstm':
-            self.enc = LSTM(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim,
-                            output_dim=h_dim, init=init,
-                            inner_init=inner_init)
-            self.dec = LSTM(input_dim=z_dim, output_dim=h_dim, init=init,
-                            inner_init=inner_init)
+            self.enc = LSTM(
+                input_length=self.n_steps,
+                input_dim=self._input_shape[0]*2*self.N_enc**2 + self.output_dim,
+                output_dim=self.output_dim, init=self.init, inner_init=self.inner_init)
+            self.dec = LSTM(
+                input_length=self.n_steps,
+                input_dim=self.code_dim, output_dim=self.output_dim,
+                init=self.init, inner_init=self.inner_init)
         else:
             raise ValueError('This type of inner_rnn is not supported')
 
-        self.init_canvas = shared_zeros(input_shape)  # canvas and hidden state
-        self.init_h_enc = shared_zeros((h_dim))     # initial values
-        self.init_h_dec = shared_zeros((h_dim))     # should be trained
-        self.L_enc = self.enc.init((h_dim, 5))  # "read" attention parameters (eq. 21)
-        self.L_dec = self.enc.init((h_dim, 5))  # "write" attention parameters (eq. 28)
+        self.enc.build()
+        self.dec.build()
+
+        self.init_canvas = shared_zeros(self._input_shape)  # canvas and hidden state
+        self.init_h_enc = shared_zeros((self.output_dim))  # initial values
+        self.init_h_dec = shared_zeros((self.output_dim))  # should be trained
+        self.L_enc = self.enc.init((self.output_dim, 5))  # "read" attention parameters (eq. 21)
+        self.L_dec = self.enc.init((self.output_dim, 5))  # "write" attention parameters (eq. 28)
         self.b_enc = shared_zeros((5))  # "read" attention parameters (eq. 21)
         self.b_dec = shared_zeros((5))  # "write" attention parameters (eq. 28)
-        self.W_patch = self.enc.init((h_dim, self.N_dec**2*self.input_shape[0]))
-        self.b_patch = shared_zeros((self.N_dec**2*self.input_shape[0]))
-        self.W_mean = self.enc.init((h_dim, z_dim))
-        self.W_sigma = self.enc.init((h_dim, z_dim))
-        self.b_mean = shared_zeros((z_dim))
-        self.b_sigma = shared_zeros((z_dim))
+        self.W_patch = self.enc.init((self.output_dim, self.N_dec**2*self._input_shape[0]))
+        self.b_patch = shared_zeros((self.N_dec**2*self._input_shape[0]))
+        self.W_mean = self.enc.init((self.output_dim, self.code_dim))
+        self.W_sigma = self.enc.init((self.output_dim, self.code_dim))
+        self.b_mean = shared_zeros((self.code_dim))
+        self.b_sigma = shared_zeros((self.code_dim))
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
-            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
-            # self.init_canvas, self.init_h_enc, self.init_h_dec]
+            self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
+            self.init_canvas, self.init_h_enc, self.init_h_dec]
+
+        if self.inner_rnn == 'lstm':
+            self.init_cell_enc = shared_zeros((self.output_dim))     # initial values
+            self.init_cell_dec = shared_zeros((self.output_dim))     # should be trained
+            self.params = self.params + [self.init_cell_dec, self.init_cell_enc]
+
+    def set_previous(self, layer, connection_map={}):
+        self.previous = layer
+        self.build()
+        self.init_updates()
 
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
@@ -113,7 +140,7 @@ class DRAW(Recurrent):
 
     def _get_patch(self, h):
         write_patch = T.dot(h, self.W_patch) + self.b_patch
-        write_patch = write_patch.reshape((h.shape[0], self.input_shape[0],
+        write_patch = write_patch.reshape((h.shape[0], self._input_shape[0],
                                            self.N_dec, self.N_dec))
         return write_patch
 
@@ -164,17 +191,17 @@ class DRAW(Recurrent):
             return h, cell
 
     def _get_initial_states(self, X):
-        if self.inner_rnn == 'gru':
-            batch_size = X.shape[0]
-            canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
-                                                                      axis=0)
-            init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
-            init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        batch_size = X.shape[0]
+        canvas = self.init_canvas.dimshuffle('x', 0, 1, 2).repeat(batch_size,
+                                                                  axis=0)
+        init_enc = self.init_h_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        init_dec = self.init_h_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+        if self.inner_rnn == 'lstm':
+            init_cell_enc = self.init_cell_enc.dimshuffle('x', 0).repeat(batch_size, axis=0)
+            init_cell_dec = self.init_cell_dec.dimshuffle('x', 0).repeat(batch_size, axis=0)
+            return canvas, init_enc, init_cell_enc, init_cell_dec
         else:
-            canvas = alloc_zeros_matrix(*X.shape)  # + self.init_canvas[None, :, :, :]
-            init_enc = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_enc[None, :]
-            init_dec = alloc_zeros_matrix(X.shape[0], self.h_dim)  # + self.init_h_dec[None, :]
-        return canvas, init_enc, init_dec
+            return canvas, init_enc, init_dec
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
         x_hat = x - self.canvas_activation(canvas)
@@ -235,12 +262,11 @@ class DRAW(Recurrent):
         self._train_state = train
         X, eps = self.get_input(train).values()
         eps = eps.dimshuffle(1, 0, 2)
-        canvas, init_enc, init_dec = self._get_initial_states(X)
 
         if self.inner_rnn == 'gru':
             outputs, updates = scan(self._step,
                                     sequences=eps,
-                                    outputs_info=[canvas, init_enc, init_dec, None],
+                                    outputs_info=self._get_initial_states(X) + (None, ),
                                     non_sequences=[X, ] + self.params,
                                     # n_steps=self.n_steps,
                                     truncate_gradient=self.truncate_gradient)
@@ -248,8 +274,7 @@ class DRAW(Recurrent):
         elif self.inner_rnn == 'lstm':
             outputs, updates = scan(self._step_lstm,
                                     sequences=eps,
-                                    outputs_info=[0*canvas, 0*init_enc, 0*init_enc,
-                                                  0*init_dec, 0*init_dec, None],
+                                    outputs_info=self._get_initial_states(X) + (None, ),
                                     non_sequences=[X, ] + self.params,
                                     truncate_gradient=self.truncate_gradient)
 

@@ -18,14 +18,15 @@ class Bidirectional(Recurrent):
     def __init__(self, forward, backward, return_sequences=False,
                  truncate_gradient=-1):
         super(Bidirectional, self).__init__()
+        self.input = T.tensor3()
         self.forward = forward
         self.backward = backward
-        self.params = forward.params + backward.params
-        self.input = T.tensor3()
-        self.forward.input = self.input
-        self.backward.input = self.input
         self.return_sequences = return_sequences
         self.truncate_gradient = truncate_gradient
+        self.output_dim = self.forward.output_dim
+        if self.forward.output_dim != self.backward.output_dim:
+            raise ValueError("Make sure `forward` and `backward` have " +
+                             "the same `ouput_dim.`")
 
         rs = (self.return_sequences, forward.return_sequences,
               backward.return_sequences)
@@ -38,13 +39,33 @@ class Bidirectional(Recurrent):
             raise ValueError("Make sure 'truncate_gradient' is equal for self," +
                              " forward and backward.")
 
-    def set_previous(self, layer):
-        if not self.supports_masked_input() and layer.get_output_mask() is not None:
-            raise Exception("Attached non-masking layer to layer with masked output")
-        self.previous = layer
-        self.forward.previous = layer
-        self.backward.previous = layer
+    def build(self):
+        # self.forward.input = self.input
+        # self.backward.input = self.input
+        self.forward.build()
+        self.backward.build()
+        self.params = self.forward.params + self.backward.params
+
+    def set_previous(self, layer, connection_map={}):
+        assert self.nb_input == layer.nb_output == 1, "Cannot connect layers: input count and output count should be 1."
+        if hasattr(self, 'input_ndim'):
+            assert self.input_ndim == len(layer.output_shape), "Incompatible shapes: layer expected input with ndim=" +\
+                str(self.input_ndim) + " but previous layer has output_shape " + str(layer.output_shape)
+        self.forward.set_previous(layer, connection_map)
+        self.backward.set_previous(layer, connection_map)
         self.backward.get_input = types.MethodType(_get_reversed_input, self.backward)
+        self.previous = layer
+        self.build()
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        f_out = self.forward.output_dim
+        b_out = self.backward.output_dim
+        if self.return_sequences:
+            return (input_shape[0], input_shape[1], f_out + b_out)
+        else:
+            return (input_shape[0], f_out + b_out)
 
     def get_output(self, train=False):
         Xf = self.forward.get_output(train)
@@ -63,18 +84,28 @@ class Bidirectional(Recurrent):
 
 
 class StatefulGRU(GRU):
-    def __init__(self, input_dim, batch_size, output_dim=128,
+    def __init__(self, batch_size, output_dim=128,
                  init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', inner_activation='hard_sigmoid',
-                 weights=None, truncate_gradient=-1, return_sequences=False):
+                 weights=None, truncate_gradient=-1, return_sequences=False,
+                 input_dim=None, input_length=None, **kwargs):
+
+        self.batch_size = batch_size
+        self.input_dim = input_dim
+        self.input_length = input_length
+        if self.input_dim:
+            kwargs['input_shape'] = (self.input_length, self.input_dim)
 
         super(StatefulGRU, self).__init__(
-            input_dim, output_dim, init=init, inner_init=inner_init,
+            output_dim, init=init, inner_init=inner_init,
             activation=activation, inner_activation=inner_activation,
             weights=weights, truncate_gradient=truncate_gradient,
-            return_sequences=return_sequences)
+            return_sequences=return_sequences,
+            input_dim=input_dim, input_length=input_length, **kwargs)
 
-        self.h = shared_zeros((batch_size, output_dim))  # Here is the state
+    def build(self):
+        super(StatefulGRU, self).build()
+        self.h = shared_zeros((self.batch_size, self.output_dim))  # Here is the state
 
     def get_output(self, train=False):
         X = self.get_input(train)

@@ -49,15 +49,16 @@ X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
 print('X_train shape:', X_train.shape)
 print('X_test shape:', X_test.shape)
 
-lstm = LSTM(128, 128/2)
-gru = GRU(128, 128/2)  # we divide by 2 because results will be concatenated
+lstm = LSTM(output_dim=128/2)
+gru = GRU(output_dim=128/2)  # we divide by 2 because results will be concatenated
 brnn = Bidirectional(forward=lstm, backward=gru)
 
 print('Build model...')
 model = Sequential()
-model.add(Embedding(max_features, 128))
+model.add(Embedding(max_features, 128, input_length=maxlen))
 model.add(brnn)  # try using another Bidirectional RNN inside the Bidirectional RNN. Inception meets callback hell.
-model.add(Dense(128, 1))
+model.add(Dropout(0.5))
+model.add(Dense(1))
 model.add(Activation('sigmoid'))
 
 # try using different optimizers and different optimizer configs

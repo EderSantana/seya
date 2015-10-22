@@ -62,9 +62,8 @@ class SparseCoding(Layer):
                  n_steps=10,
                  return_reconstruction=False,
                  W_regularizer=None,
-                 activity_regularizer=None):
+                 activity_regularizer=None, **kwargs):
 
-        super(SparseCoding, self).__init__()
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -85,6 +84,20 @@ class SparseCoding(Layer):
         if activity_regularizer:
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
+
+        kwargs['input_shape'] = (None, self.input_dim)
+        super(SparseCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        if self.return_reconstruction:
+            return input_shape
+        else:
+            return input_shape[0], self.ouput_dim
+
+    def build():
+        pass
 
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.output_dim)
@@ -134,7 +147,6 @@ class VarianceCoding(Layer):
                  W_regularizer=None,
                  activity_regularizer=None):
 
-        super(VarianceCoding, self).__init__()
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -154,6 +166,15 @@ class VarianceCoding(Layer):
         if activity_regularizer:
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
+        kwargs['input_shape'] = (None, self.input_dim)
+        super(VarianceCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        return input_shape[0], self.ouput_dim
+
+    def build(self):
+        pass
 
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.output_dim)
@@ -247,6 +268,16 @@ class Sparse2L(Layer):
         if activity_regularizer:
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
+
+        kwargs['input_shape'] = (None, self.input_dim)
+        super(Sparse2L, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        return input_shape[0], self.ouput_dim
+
+    def build(self):
+        pass
 
     def get_initial_states(self, inputs):
         # u_init = alloc_zeros_matrix(inputs.shape[0], self.causes_dim) + .1
@@ -375,6 +406,21 @@ class ConvSparseCoding(Layer):
 
         self.return_reconstruction = return_reconstruction
 
+        kwargs['input_shape'] = (None, self.input_dim)
+        super(ConvSparseCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        out_row = conv_output_length(input_shape[2], self.nb_row,
+                                     self.border_mode, 1):
+        out_col = conv_output_length(input_shape[3], self.nb_col,
+                                     self.border_mode, 1):
+        return None, self.stack_size, out_row, out_col
+
+    def build(self):
+        pass
+
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.stack_size,
                                   self.code_row, self.code_col)
@@ -417,9 +463,8 @@ class ConvSparse2L(Layer):
                  V_regularizer=None,
                  activity_regularizer=None,
                  return_reconstruction=False, n_steps=10, truncate_gradient=-1,
-                 gamma=0.1):
+                 gamma=0.1, **kwargs):
 
-        super(ConvSparseCoding, self).__init__()
         self.init = initializations.get(init)
         self.activation = activations.get(activation)
         self.subsample = subsample
@@ -454,6 +499,21 @@ class ConvSparse2L(Layer):
             self.set_weights(weights)
 
         self.return_reconstruction = return_reconstruction
+
+        kwargs['input_shape'] = (None, nb_filter, input_row, input_col)
+        super(ConvSparse2L, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        out_row = conv_output_length(input_shape[2], self.nb_row,
+                                     self.border_mode, 1):
+        out_col = conv_output_length(input_shape[3], self.nb_col,
+                                     self.border_mode, 1):
+        return None, self.stack_size, out_row, out_col
+
+    def build(self):
+        pass
 
     def get_initial_states(self, X):
         return alloc_zeros_matrix(X.shape[0], self.stack_size,
@@ -492,8 +552,7 @@ class TSC(Recurrent):
     def __init__(self, s2l, truncate_gradient=1,
                  return_mode='all',
                  init='glorot_uniform',
-                 inner_init='identity'):
-        super(TSC, self).__init__()
+                 inner_init='identity', **kwargs):
         self.return_sequences = True
         self.truncate_gradient = truncate_gradient
         self.init = initializations.get(init)
@@ -503,6 +562,16 @@ class TSC(Recurrent):
         self.A = self.inner_init((s2l.output_dim, s2l.output_dim))
         self.params = s2l.params  # + [self.A, ]
         self.input = T.tensor3()
+
+        kwargs['input_shape'] = (None, None, self.s2l.input_dim)
+        super(VarianceCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        return None
+
+    def build(self):
+        pass
 
     def _step(self, inp, x_t, u_t, *args):
         x_prior = T.dot(x_t, self.A)
@@ -531,8 +600,7 @@ class TSC2L(Recurrent):
     def __init__(self, layer1, layer2, truncate_gradient=1,
                  return_mode='all',
                  init='glorot_uniform',
-                 inner_init='identity'):
-        super(TSC2L, self).__init__()
+                 inner_init='identity', **kwargs):
         self.return_sequences = True
         self.truncate_gradient = truncate_gradient
         self.init = initializations.get(init)
@@ -545,6 +613,16 @@ class TSC2L(Recurrent):
         self.A2 = self.inner_init((layer2.output_dim, layer2.output_dim))
         self.params = layer1.params + layer2.params  # + [self.A1, self.A2]
         self.input = T.tensor3()
+
+        kwargs['input_shape'] = self.layer1.input_shape
+        super(VarianceCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        return None
+
+    def build(self):
+        pass
 
     def _step(self, inp, xl1_t, ul1_t, xl2_t, ul2_t, *args):
         xl1_prior = T.dot(xl1_t, self.A1)
@@ -577,9 +655,8 @@ class TSC2L(Recurrent):
 class TemporalSparseCoding(Recurrent):
     def __init__(self, prototype, transition_net, truncate_gradient=-1,
                  return_mode='reconstruction',
-                 init='glorot_uniform'):
+                 init='glorot_uniform', **kwargs):
 
-        super(TemporalSparseCoding, self).__init__()
         self.return_sequences = True
         self.init = initializations.get(init)
         self.prototype = prototype
@@ -606,6 +683,16 @@ class TemporalSparseCoding(Recurrent):
         self.params = prototype.params  # + [self.A, ]
         self.truncate_gradient = truncate_gradient
         self.return_mode = return_mode
+
+        kwargs['input_shape'] = (None,) + self.prototype.input_shape
+        super(TemporalSparseCoding, self).__init__(**kwargs)
+
+    @property
+    def output_shape(self):
+        return None
+
+    def build(self):
+        pass
 
     def _step(self, inputs, x_t, u_t, *args):
         tmp = self.tnet.input

@@ -34,14 +34,26 @@ class SpatialTransformer(Layer):
                  downsample_factor=1,
                  return_theta=False,
                  **kwargs):
-        super(SpatialTransformer, self).__init__()
         self.downsample_factor = downsample_factor
         self.locnet = localization_net
-        self.params = localization_net.params
-        self.regularizers = localization_net.regularizers
-        self.constraints = localization_net.constraints
-        self.input = self.locnet.input  # This must be T.tensor4()
         self.return_theta = return_theta
+        super(SpatialTransformer, self).__init__(**kwargs)
+
+    def build(self):
+        if hasattr(self, 'previous'):
+            self.locnet.set_previous(self.previous)
+        self.locnet.build()
+        self.params = self.locnet.params
+        self.regularizers = self.locnet.regularizers
+        self.constraints = self.locnet.constraints
+        self.input = self.locnet.input  # This must be T.tensor4()
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        return (None, input_shape[1],
+                int(input_shape[2] / self.downsample_factor),
+                int(input_shape[2] / self.downsample_factor))
 
     def get_output(self, train=False):
         X = self.get_input(train)
