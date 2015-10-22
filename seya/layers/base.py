@@ -66,8 +66,8 @@ class Replicator(MaskedLayer):
         Originally useful for broadcasting a fixed input into a scan loop.
         Think conditional RNNs without the need to rewrite the RNN class.
     '''
-    def __init__(self, leng):
-        super(Replicator, self).__init__()
+    def __init__(self, leng, **kwargs):
+        super(Replicator, self).__init__(kwargs)
         self.ones = T.ones((leng,))
         self.input = T.matrix()
 
@@ -86,8 +86,8 @@ class Unpool(Layer):
     ds: list with two values each one defines how much that dimension will
     be upsampled.
     '''
-    def __init__(self, ds):
-        super(Unpool, self).__init__()
+    def __init__(self, ds, **kwargs):
+        super(Unpool, self).__init__(kwargs)
         self.input = T.tensor4()
         self.ds = ds
 
@@ -98,10 +98,10 @@ class Unpool(Layer):
 
 
 class TimePicker(MaskedLayer):
-    def __init__(self, time=-1):
+    def __init__(self, time=-1, **kwargs):
         '''Picks a single value in time from a recurrent layer
            without forgeting its input mask'''
-        super(TimePicker, self).__init__()
+        super(TimePicker, self).__init__(kwargs)
         self.time = time
         self.input = T.tensor3()
 

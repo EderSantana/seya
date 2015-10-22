@@ -62,9 +62,10 @@ class SparseCoding(Layer):
                  n_steps=10,
                  return_reconstruction=False,
                  W_regularizer=None,
-                 activity_regularizer=None):
+                 activity_regularizer=None,
+                 **kwargs):
 
-        super(SparseCoding, self).__init__()
+        super(SparseCoding, self).__init__(kwargs)
         self.init = initializations.get(init)
         self.input_dim = input_dim
         self.output_dim = output_dim

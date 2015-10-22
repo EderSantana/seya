@@ -16,8 +16,8 @@ def _get_reversed_input(self, train=False):
 
 class Bidirectional(Recurrent):
     def __init__(self, forward, backward, return_sequences=False,
-                 truncate_gradient=-1):
-        super(Bidirectional, self).__init__()
+                 truncate_gradient=-1, **kwargs):
+        super(Bidirectional, self).__init__(**kwargs)
         self.forward = forward
         self.backward = backward
         self.params = forward.params + backward.params

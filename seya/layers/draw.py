@@ -28,7 +28,7 @@ class DRAW(Recurrent):
     def __init__(self, input_shape, h_dim, z_dim, N_enc=2, N_dec=5, n_steps=64,
                  inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
                  canvas_activation=T.nnet.sigmoid, init='glorot_uniform',
-                 inner_init='orthogonal'):
+                 inner_init='orthogonal', **kwargs):
         self.input = T.tensor4()
         self.h_dim = h_dim  # this is 256 for MNIST
         self.z_dim = z_dim  # this is 100 for MNIST
@@ -39,36 +39,37 @@ class DRAW(Recurrent):
         self.return_sequences = return_sequences
         self.n_steps = n_steps
         self.canvas_activation = canvas_activation
-
         self.height = input_shape[1]
         self.width = input_shape[2]
-
         self.inner_rnn = inner_rnn
         if inner_rnn == 'gru':
-            self.enc = GRU(input_dim=self.input_shape[0]*2*self.N_enc**2 +
-                           h_dim, output_dim=h_dim, init=init,
+            self.enc = GRU(input_dim=self.input_shape[0] * 2 * self.N_enc ** 2 +
+                                     h_dim, output_dim=h_dim, init=init,
                            inner_init=inner_init)
             self.dec = GRU(input_dim=z_dim, output_dim=h_dim, init=init,
                            inner_init=inner_init)
 
         elif inner_rnn == 'lstm':
-            self.enc = LSTM(input_dim=self.input_shape[0]*2*self.N_enc**2 + h_dim,
-                            output_dim=h_dim, init=init,
-                            inner_init=inner_init)
+            self.enc = LSTM(
+                input_dim=self.input_shape[0] * 2 * self.N_enc ** 2 + h_dim,
+                output_dim=h_dim, init=init,
+                inner_init=inner_init)
             self.dec = LSTM(input_dim=z_dim, output_dim=h_dim, init=init,
                             inner_init=inner_init)
         else:
             raise ValueError('This type of inner_rnn is not supported')
-
         self.init_canvas = shared_zeros(input_shape)  # canvas and hidden state
-        self.init_h_enc = shared_zeros((h_dim))     # initial values
-        self.init_h_dec = shared_zeros((h_dim))     # should be trained
-        self.L_enc = self.enc.init((h_dim, 5))  # "read" attention parameters (eq. 21)
-        self.L_dec = self.enc.init((h_dim, 5))  # "write" attention parameters (eq. 28)
+        self.init_h_enc = shared_zeros((h_dim))  # initial values
+        self.init_h_dec = shared_zeros((h_dim))  # should be trained
+        self.L_enc = self.enc.init(
+            (h_dim, 5))  # "read" attention parameters (eq. 21)
+        self.L_dec = self.enc.init(
+            (h_dim, 5))  # "write" attention parameters (eq. 28)
         self.b_enc = shared_zeros((5))  # "read" attention parameters (eq. 21)
         self.b_dec = shared_zeros((5))  # "write" attention parameters (eq. 28)
-        self.W_patch = self.enc.init((h_dim, self.N_dec**2*self.input_shape[0]))
-        self.b_patch = shared_zeros((self.N_dec**2*self.input_shape[0]))
+        self.W_patch = self.enc.init(
+            (h_dim, self.N_dec ** 2 * self.input_shape[0]))
+        self.b_patch = shared_zeros((self.N_dec ** 2 * self.input_shape[0]))
         self.W_mean = self.enc.init((h_dim, z_dim))
         self.W_sigma = self.enc.init((h_dim, z_dim))
         self.b_mean = shared_zeros((z_dim))
@@ -76,7 +77,7 @@ class DRAW(Recurrent):
         self.params = self.enc.params + self.dec.params + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
             self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma]
-            # self.init_canvas, self.init_h_enc, self.init_h_dec]
+        super(DRAW, self).__init__(**kwargs)
 
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list

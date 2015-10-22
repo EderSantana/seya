@@ -34,7 +34,7 @@ class SpatialTransformer(Layer):
                  downsample_factor=1,
                  return_theta=False,
                  **kwargs):
-        super(SpatialTransformer, self).__init__()
+        super(SpatialTransformer, self).__init__(**kwargs)
         self.downsample_factor = downsample_factor
         self.locnet = localization_net
         self.params = localization_net.params
@@ -210,7 +210,7 @@ class ST2(Layer):
                  downsample_factor=(1, 1),
                  return_theta=False,
                  **kwargs):
-        super(ST2, self).__init__()
+        super(ST2, self).__init__(**kwargs)
         self.ds = downsample_factor
         self.locnet = localization_net
         self.img_shape = img_shape

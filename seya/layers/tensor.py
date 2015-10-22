@@ -16,8 +16,8 @@ class FDPCN(Recurrent):
                  init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', gate_activation='sigmoid',
                  weights=None, return_mode='states',
-                 truncate_gradient=-1, return_sequences=False):
-        super(FDPCN, self).__init__()
+                 truncate_gradient=-1, return_sequences=False, **kwargs):
+        super(FDPCN, self).__init__(kwargs)
         self.init = initializations.get(init)
         self.inner_init = initializations.get(inner_init)
         self.input_dim = input_dim

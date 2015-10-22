@@ -26,7 +26,8 @@ class Recursive(Layer):
             - get_weights
             - set_weights
     '''
-    def __init__(self, truncate_gradient=-1, return_sequences=False):
+
+    def __init__(self, truncate_gradient=-1, return_sequences=False, **kwargs):
         self.return_sequences = return_sequences
         self.truncate_gradient = truncate_gradient
         self.namespace = set()  # strings
@@ -50,6 +51,7 @@ class Recursive(Layer):
         self.updates = []
 
         self.states_map = {}
+        super(Recursive, self).__init__(**kwargs)
 
     @property
     def nb_input(self):
