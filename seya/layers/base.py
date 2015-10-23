@@ -15,7 +15,7 @@ class Lambda(MaskedLayer):
         super(Lambda, self).__init__()
         self.input = ndim_tensor(ndim)
         self.func = func
-        self.output_shape = output_shape
+        self._output_shape = output_shape
 
     def get_output(self, train=False):
         X = self.get_input(train)
@@ -23,7 +23,7 @@ class Lambda(MaskedLayer):
 
     @property
     def output_shape(self):
-        return self.output_shape
+        return self._output_shape
 
 
 class Pass(MaskedLayer):
