@@ -11,11 +11,11 @@ floatX = theano.config.floatX
 
 
 class Lambda(MaskedLayer):
-    def __init__(self, func, output_dim, ndim=2):
+    def __init__(self, func, output_shape, ndim=2):
         super(Lambda, self).__init__()
         self.input = ndim_tensor(ndim)
         self.func = func
-        self.output_dim = output_dim
+        self.output_shape = output_shape
 
     def get_output(self, train=False):
         X = self.get_input(train)
