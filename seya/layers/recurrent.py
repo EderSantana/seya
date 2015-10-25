@@ -18,15 +18,14 @@ class Bidirectional(Recurrent):
     def __init__(self, forward, backward, return_sequences=False,
                  truncate_gradient=-1):
         super(Bidirectional, self).__init__()
-        self.input = T.tensor3()
         self.forward = forward
         self.backward = backward
         self.return_sequences = return_sequences
         self.truncate_gradient = truncate_gradient
-        self.output_dim = self.forward.output_dim
-        if self.forward.output_dim != self.backward.output_dim:
-            raise ValueError("Make sure `forward` and `backward` have " +
-                             "the same `ouput_dim.`")
+        self.output_dim = self.forward.output_dim + self.backward.output_dim
+        #if self.forward.output_dim != self.backward.output_dim:
+        #    raise ValueError("Make sure `forward` and `backward` have " +
+        #                     "the same `ouput_dim.`")
 
         rs = (self.return_sequences, forward.return_sequences,
               backward.return_sequences)
@@ -40,8 +39,9 @@ class Bidirectional(Recurrent):
                              " forward and backward.")
 
     def build(self):
-        # self.forward.input = self.input
-        # self.backward.input = self.input
+        self.input = T.tensor3()
+        self.forward.input = self.input
+        self.backward.input = self.input
         self.forward.build()
         self.backward.build()
         self.params = self.forward.params + self.backward.params
@@ -60,12 +60,13 @@ class Bidirectional(Recurrent):
     @property
     def output_shape(self):
         input_shape = self.input_shape
-        f_out = self.forward.output_dim
-        b_out = self.backward.output_dim
+        #f_out = self.forward.output_dim
+        #b_out = self.backward.output_dim
+        output_dim = self.output_dim
         if self.return_sequences:
-            return (input_shape[0], input_shape[1], f_out + b_out)
+            return (input_shape[0], input_shape[1], output_dim)
         else:
-            return (input_shape[0], f_out + b_out)
+            return (input_shape[0], output_dim)
 
     def get_output(self, train=False):
         Xf = self.forward.get_output(train)

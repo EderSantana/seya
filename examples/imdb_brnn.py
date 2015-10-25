@@ -49,8 +49,8 @@ X_test = sequence.pad_sequences(X_test, maxlen=maxlen)
 print('X_train shape:', X_train.shape)
 print('X_test shape:', X_test.shape)
 
-lstm = LSTM(output_dim=128/2)
-gru = GRU(output_dim=128/2)  # we divide by 2 because results will be concatenated
+lstm = LSTM(output_dim=64)
+gru = GRU(output_dim=64)  # original examples was 128, we divide by 2 because results will be concatenated
 brnn = Bidirectional(forward=lstm, backward=gru)
 
 print('Build model...')
