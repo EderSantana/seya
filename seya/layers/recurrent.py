@@ -76,9 +76,9 @@ class Bidirectional(Recurrent):
 
     def get_config(self):
         new_dict = {}
-        for k, v in self.forward.get_cofig.items():
+        for k, v in self.forward.get_config().items():
             new_dict['forward_'+k] = v
-        for k, v in self.backward.get_cofig.items():
+        for k, v in self.backward.get_config().items():
             new_dict['backward_'+k] = v
         new_dict["name"] = self.__class__.__name__
         return new_dict
