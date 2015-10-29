@@ -31,11 +31,8 @@ from seya.layers.readout import GRUwithReadout
     choice of loss and optimizer is critical, etc.
     Some configurations won't converge.
 
-    - LSTM loss decrease patterns during training can be quite different
-    from what you see with CNNs/MLPs/etc.
-
     GPU command:
-        THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python imdb_lstm.py
+        THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python imdb_readout.py
 '''
 
 max_features = 20000
@@ -57,6 +54,8 @@ state_dim = 128
 readout = Sequential()
 readout.add(Dense(1, input_shape=(state_dim,), activation='sigmoid'))
 
+# The GRU's actual input dim is data_dim + readout.output_dim.
+# This is estimated internally
 gru_wr = GRUwithReadout(readout)
 
 print('Build model...')

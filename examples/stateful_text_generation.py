@@ -62,8 +62,8 @@ model.add(Dense(len(chars)))
 model.add(Activation('softmax'))
 
 # define callbacks to reset state after every 4 batches
-h1_reset = ResetRNNState(model.layers[0].h, lambda epochs, logs: epochs%4 == 0)
-h2_reset = ResetRNNState(model.layers[2].h, lambda epochs, logs: epochs%4 == 0)
+h1_reset = ResetRNNState(model.layers[0].h, lambda batches, logs: batches%4 == 0)
+h2_reset = ResetRNNState(model.layers[2].h, lambda batches, logs: batches%4 == 0)
 
 model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
