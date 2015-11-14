@@ -8,7 +8,7 @@ import numpy as np
 
 
 def image2features(input_path, output_path='features.hdf5',
-                   label_callback=None, feature_extractor=fext):
+                   feature_extractor=fext, label_callback=None):
     ''' Extract features using a pretrained model and store to hdf5
 
     Parameteres:
@@ -39,7 +39,8 @@ def image2features(input_path, output_path='features.hdf5',
     with h5py.File('tttemp.hdf5', 'w') as h:
         X = h.create_dataset('features', (len(files), 3072), dtype='f')
         if label_callback is not None:
-            y = h.create_dataset('labels', (len(files), 3072), dtype='f')
+            label_size = len(label_callback('test'))
+            y = h.create_dataset('labels', (len(files), label_size), dtype='f')
 
         print("Reading a total of {} files...".format(len(files)))
         for f in files:
@@ -61,8 +62,8 @@ def image2features(input_path, output_path='features.hdf5',
         print("Successfully transformed {} files".format(count))
         with h5py.File(output_path, 'w') as g:
             XX = g.create_dataset('features', (count, 3072), dtype='f')
-            yy = g.create_dataset('labels', (count, 1), dtype='f')
             if label_callback is not None:
+                yy = g.create_dataset('labels', (count, label_size), dtype='f')
                 yy[:] = y[:count]
             for i in range(count):
                 XX[i] = X[i]
