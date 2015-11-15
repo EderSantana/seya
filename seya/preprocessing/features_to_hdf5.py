@@ -56,7 +56,7 @@ def features_to_hdf5(input_path, output_path='features.hdf5',
             label_size = len(label_callback('test'))
             y = h.create_dataset('labels', (len(files), label_size), dtype='f')
 
-        print("Reading a total of {} files...".format(len(files)))
+        print("Extracting features of a total of {} files...".format(len(files)))
         progbar = Progbar(len(files))
         for f in files:
             try:
@@ -82,7 +82,7 @@ def features_to_hdf5(input_path, output_path='features.hdf5',
                 yy[:] = y[:count]
 
             progbar = Progbar(count)
-            print("Clearning up...")
+            print("Cleaning up...")
             for i in range(count):
                 progbar.add(1)
                 XX[i] = X[i]
