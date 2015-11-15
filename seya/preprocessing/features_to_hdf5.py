@@ -23,8 +23,10 @@ def features_to_hdf5(input_path, output_path='features.hdf5',
     output_path: str, path to the resulting hdf5 file. We also create a text
                  file with the name and order of the files saved to hdf5.
 
-    label_callback: optional function, a callback to get label from each file
-                    name
+    label_callback: optional function, a callback to get a label from each file
+                    name. Should return a numpy array with labels, even when
+                    using a single binary label. We use the `len` of the
+                    returned value to allocate the labels matrix.
 
     feature_extractor: sklearn-theano transformer, default: OverfeatTransformer
 
