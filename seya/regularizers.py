@@ -25,9 +25,9 @@ class GaussianKL(Regularizer):
         return {"name": self.__class__.__name__}
 
 
-class SimpleCost(Regularizer):
+class LambdaRegularizer(Regularizer):
     def __init__(self, cost):
-        super(SimpleCost, self).__init__()
+        super(LambdaRegularizer, self).__init__()
         self.cost = cost
 
     def __call__(self, loss):
