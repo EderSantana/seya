@@ -2,13 +2,15 @@ import theano
 import theano.tensor as T
 
 from keras.layers.recurrent import GRU
-from keras.utils.theano_utils import shared_zeros, alloc_zeros_matrix
+from keras.utils.theano_utils import shared_zeros
 
 from seya.utils import apply_model
+
 
 def _masking(h_t, h_tm1, mask):
     mask = mask[:, 0].dimshuffle(0, 'x')
     return mask * h_t + (1-mask) * h_tm1
+
 
 class GRUwithReadout(GRU):
     """
@@ -34,7 +36,7 @@ class GRUwithReadout(GRU):
                  input_dim=None, input_length=None, **kwargs):
 
         self.readout = readout
-        self.state_dim = readout.layers[0].input_shape[1] # state_dim
+        self.state_dim = readout.layers[0].input_shape[1]  # state_dim
         input_dim = readout.layers[0].input_shape[1]
         super(GRUwithReadout, self).__init__(
             self.state_dim,
@@ -47,6 +49,7 @@ class GRUwithReadout(GRU):
 
     def build(self):
         self.readout.build()
+        self.init_h = shared_zeros((self.state_dim,))
         # here is difference on the sizes
         input_dim = self.input_shape[2] + self.readout.output_shape[1]
 
@@ -64,6 +67,7 @@ class GRUwithReadout(GRU):
         self.b_h = shared_zeros((self.state_dim))
 
         self.params = [
+            self.init_h,
             self.W_z, self.U_z, self.b_z,
             self.W_r, self.U_r, self.b_r,
             self.W_h, self.U_h, self.b_h,
@@ -74,14 +78,14 @@ class GRUwithReadout(GRU):
             del self.initial_weights
 
     def _get_initial_states(self, batch_size):
-        init_h = T.unbroadcast(alloc_zeros_matrix(batch_size, self.state_dim), 1)
-        init_o = T.unbroadcast(alloc_zeros_matrix(batch_size, self.output_dim), 1)
+        init_h = T.repeat(self.init_h.dimshuffle('x', 0), batch_size, axis=0)
+        init_o = apply_model(self.readout, init_h)
         return init_h, init_o
 
     def _step(self,
-          x_t, mask_tm1,
-          h_tm1, o_tm1,
-          u_z, u_r, u_h, *args):
+              x_t, mask_tm1,
+              h_tm1, o_tm1,
+              u_z, u_r, u_h, *args):
         xo = T.concatenate([x_t, o_tm1], axis=-1)
         xz_t = T.dot(xo, self.W_z) + self.b_z
         xr_t = T.dot(xo, self.W_r) + self.b_r
@@ -98,10 +102,6 @@ class GRUwithReadout(GRU):
         X = self.get_input(train)
         padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)
         X = X.dimshuffle((1, 0, 2))
-
-        x_z = T.dot(X, self.W_z) + self.b_z
-        x_r = T.dot(X, self.W_r) + self.b_r
-        x_h = T.dot(X, self.W_h) + self.b_h
 
         init_h, init_o = self._get_initial_states(X.shape[1])
         outputs, updates = theano.scan(

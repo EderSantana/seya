@@ -1,5 +1,6 @@
 import numpy as np
-import theano.tensor as tensor
+import theano
+import theano.tensor as T
 from keras.layers.core import Activation
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
@@ -103,7 +104,7 @@ def pad_md_sequences(sequences, maxlen=None, dtype='int32', padding='pre', trunc
 
 
 def diff_abs(z):
-    return tensor.sqrt(tensor.sqr(z)+1e-6)
+    return T.sqrt(T.sqr(z)+1e-6)
 
 
 def unroll_scan(fn, sequences, outputs_info, non_sequences, n_steps,
