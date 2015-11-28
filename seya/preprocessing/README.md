@@ -21,10 +21,11 @@ root
   ...
 ```
 
-We want to convert all the videos to a single hdf5 tensor. To do that,
+We want to convert all the videos to a single hdf5 tensor. That dataset will be
+called `'data'` inside the hdf5. To do that,
 we use the `convert_dataset_to_hdf5` that calls `convert_videos_to_hdf5`
-recursively on each folder. Also, we want a second matrix with the labels of
-each video given by the folder name. From the `root` directory we do the
+recursively on each class folder. Also, on the same hdf5 we want a second matrix, called
+`'labels'`, with the labels of each video given by the folder name. From the `root` directory we do the
 following:
 ```python
 def label_cbk(f, return_len=False):
