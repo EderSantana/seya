@@ -68,6 +68,10 @@ def convert_videos_to_hdf5(hdf5file, filepath,
             process = subprocess.Popen('rm {}'.format(f[:-4]), shell=True, stdout=subprocess.PIPE)
             process.wait()
 
+    with open(hdf5file+'.txt', 'w') as file_order:
+        for f in files:
+            file_order.write(f+'\n')
+
 
 def convert_dataset_to_hdf5(hdf5file, filepath,
                             ext='*.avi',
