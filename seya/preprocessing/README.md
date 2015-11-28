@@ -17,7 +17,7 @@ root
   |-video_class_1
     |-video_1.avi
     |-video_2.avi
-  |-video_class_1
+  |-video_class_2
   ...
 ```
 
@@ -38,7 +38,8 @@ def label_cbk(f, return_len=False):
     label = np.asarray([w == dirname for w in names])
     return label.astype('float32')
 
-convert_dataset_to_hdf5('final_file.hdf5', 'dataset', ext='*.avi', label_callback=label_cbk, convert='avconv')
+convert_dataset_to_hdf5('final_file.hdf5', 'dataset', ext='*.avi',
+                        label_callback=label_cbk, convert='avconv')
 ```
 
 The default configuration stores only the first 20 frames of each video center cropped
