@@ -7,9 +7,9 @@ from keras.layers.core import Layer
 from keras.layers.recurrent import Recurrent
 from keras import activations, initializations
 from keras.utils.theano_utils import alloc_zeros_matrix, sharedX
+from keras.layers.convolutional import conv_output_length
 
 from ..utils import diff_abs, theano_rng
-from ..regularizers import SimpleCost
 srng = theano_rng()
 
 floatX = theano.config.floatX
@@ -85,7 +85,7 @@ class SparseCoding(Layer):
             activity_regularizer.set_layer(self)
             self.regularizers.append(activity_regularizer)
 
-        kwargs['input_shape'] = (None, self.input_dim)
+        kwargs['input_shape'] = (self.input_dim,)
         super(SparseCoding, self).__init__(**kwargs)
 
     @property
@@ -96,7 +96,7 @@ class SparseCoding(Layer):
         else:
             return input_shape[0], self.ouput_dim
 
-    def build():
+    def build(self):
         pass
 
     def get_initial_states(self, X):
@@ -105,7 +105,7 @@ class SparseCoding(Layer):
     def _step(self, x_t, inputs, prior, W):
         outputs = self.activation(T.dot(x_t, self.W))
         rec_error = T.sqr(inputs - outputs).sum()
-        x = _IstaStep(rec_error, x_t, lambdav=self.gamma, prior=prior)
+        x = _IstaStep(rec_error, x_t, lambdav=self.gamma, x_prior=prior)
         return x, outputs
 
     def _get_output(self, inputs, train=False, prior=0):
@@ -145,7 +145,7 @@ class VarianceCoding(Layer):
                  gamma=.1,
                  n_steps=10,
                  W_regularizer=None,
-                 activity_regularizer=None):
+                 activity_regularizer=None, **kwargs):
 
         self.init = initializations.get(init)
         self.input_dim = input_dim
@@ -171,6 +171,7 @@ class VarianceCoding(Layer):
 
     @property
     def output_shape(self):
+        input_shape = self.input_shape
         return input_shape[0], self.ouput_dim
 
     def build(self):
@@ -227,7 +228,7 @@ class Sparse2L(Layer):
                  V_regularizer=None,
                  activity_regularizer=None,
                  code_shape=None,
-                 pool_size=None):
+                 pool_size=None, **kwargs):
 
         super(Sparse2L, self).__init__()
         self.init = initializations.get(init)
@@ -274,6 +275,7 @@ class Sparse2L(Layer):
 
     @property
     def output_shape(self):
+        input_shape = self.input_shape
         return input_shape[0], self.ouput_dim
 
     def build(self):
@@ -368,7 +370,7 @@ class ConvSparseCoding(Layer):
                  W_regularizer=None,
                  activity_regularizer=None,
                  return_reconstruction=False, n_steps=10, truncate_gradient=-1,
-                 gamma=0.1):
+                 gamma=0.1, **kwargs):
 
         super(ConvSparseCoding, self).__init__()
         self.init = initializations.get(init)
@@ -413,9 +415,9 @@ class ConvSparseCoding(Layer):
     def output_shape(self):
         input_shape = self.input_shape
         out_row = conv_output_length(input_shape[2], self.nb_row,
-                                     self.border_mode, 1):
+                                     self.border_mode, 1)
         out_col = conv_output_length(input_shape[3], self.nb_col,
-                                     self.border_mode, 1):
+                                     self.border_mode, 1)
         return None, self.stack_size, out_row, out_col
 
     def build(self):
@@ -507,9 +509,9 @@ class ConvSparse2L(Layer):
     def output_shape(self):
         input_shape = self.input_shape
         out_row = conv_output_length(input_shape[2], self.nb_row,
-                                     self.border_mode, 1):
+                                     self.border_mode, 1)
         out_col = conv_output_length(input_shape[3], self.nb_col,
-                                     self.border_mode, 1):
+                                     self.border_mode, 1)
         return None, self.stack_size, out_row, out_col
 
     def build(self):

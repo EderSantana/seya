@@ -28,7 +28,7 @@ recursively on each class folder. Also, on the same hdf5 we want a second matrix
 `'labels'`, with the labels of each video given by the folder name. From the `root` directory we do the
 following:
 ```python
-from video_to_hdf5 import convert_dataset_to_hdf5
+from videos_to_hdf5 import convert_dataset_to_hdf5
 
 def label_cbk(f, return_len=False):
     # define callback that calculates label from file name. If we don't
