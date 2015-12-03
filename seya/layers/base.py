@@ -2,9 +2,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from itertools import combinations
-from keras.layers.core import MaskedLayer, Layer, Dense
-from keras.utils.theano_utils import ndim_tensor
+from keras.layers.core import MaskedLayer, Layer
+from keras import backend as K
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 floatX = theano.config.floatX
@@ -13,7 +12,7 @@ floatX = theano.config.floatX
 class Lambda(MaskedLayer):
     def __init__(self, func, output_shape, ndim=2):
         super(Lambda, self).__init__()
-        self.input = ndim_tensor(ndim)
+        self.input = K.placeholder(ndim=ndim)
         self.func = func
         self._output_shape = output_shape
 
@@ -32,7 +31,7 @@ class Pass(MaskedLayer):
     '''
     def __init__(self, ndim=2):
         super(Pass, self).__init__()
-        self.input = ndim_tensor(ndim)
+        self.input = K.placeholder(ndim=ndim)
 
     def get_output(self, train=False):
         X = self.get_input(train)

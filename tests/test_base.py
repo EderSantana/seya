@@ -1,7 +1,7 @@
 import numpy as np
 
-from keras.models import Sequential
-from seya.layers.base import Replicator
+#from keras.models import Sequential
+#from seya.layers.base import Replicator
 
 
 # def test_replicator():
