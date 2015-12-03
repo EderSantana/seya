@@ -1,21 +1,22 @@
-from __future__ import print_function
-import numpy as np
-from numpy.testing import assert_allclose
-
-import unittest
-import theano.tensor as T
-import theano
-from theano import function
-from keras.layers.core import Activation, Dense
-from keras.models import Sequential
-from keras.layers.recurrent import SimpleRNN
-from seya.layers.containers import Recursive
-from seya.layers.base import Lambda
-floatX = theano.config.floatX
-
 '''
 Recursive container is temporally disabled
 '''
+
+# from __future__ import print_function
+# import numpy as np
+# from numpy.testing import assert_allclose
+#
+# import unittest
+# import theano.tensor as T
+# import theano
+# from theano import function
+# from keras.layers.core import Activation, Dense
+# from keras.models import Sequential
+# from keras.layers.recurrent import SimpleRNN
+# from seya.layers.containers import Recursive
+# from seya.layers.base import Lambda
+# floatX = theano.config.floatX
+
 # class TestRecursive(unittest.TestCase):
 #     def __init__(self, *args, **kwargs):
 #         super(TestRecursive, self).__init__(*args, **kwargs)
