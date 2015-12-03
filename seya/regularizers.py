@@ -7,19 +7,20 @@ class GaussianKL(Regularizer):
     Useful for Variational AutoEncoders.
     Use this as an activation regularizer
     """
-    def set_param(self, mean, logsigma, prior_mean=0, prior_logsigma=1):
+    def __init__(self, mean, logsigma, prior_mean=0, prior_logsigma=1):
         self.mean = mean
         self.logsigma = logsigma
         self.prior_mean = prior_mean
         self.prior_logsigma = prior_logsigma
+        super(GaussianKL, self).__init__()
 
     def __call__(self, loss):
         # See Variational Auto-Encoding Bayes by Kingma and Welling.
         mean, logsigma = self.mean, self.logsigma
         kl = (self.prior_logsigma - logsigma
               + 0.5 * (K.exp(2 * logsigma) + (mean - self.prior_mean) ** 2)
-              / K.exp(2 * self.prior_log_sigma) - 0.5)
-        loss += kl.sum(axis=-1).mean()
+              / K.exp(2 * self.prior_logsigma))
+        loss += kl.mean()
         return loss
 
     def get_config(self):

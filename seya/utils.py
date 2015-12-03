@@ -31,10 +31,23 @@ def apply_layer(layer, X):
 
 
 def apply_model(model, X):
-    tmp = model.layers[0].input
+    class TEMP:
+        def __init__(self, X):
+            self.X = X
+
+        def get_output(self, train=False):
+            return self.X
+    tmp1 = model.layers[0].input
+    tmp2 = model.layers[0].previous
+
     model.layers[0].input = X
+    model.layers[0].previous = TEMP(X)
+
     Y = model.get_output()
-    model.layers[0].input = tmp
+
+    model.layers[0].input = tmp1
+    model.layers[0].previous = tmp2
+
     return Y
 
 
