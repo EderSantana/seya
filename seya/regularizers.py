@@ -1,4 +1,4 @@
-import theano.tensor as T
+from keras import backend as K
 from keras.regularizers import Regularizer
 
 
@@ -7,18 +7,19 @@ class GaussianKL(Regularizer):
     Useful for Variational AutoEncoders.
     Use this as an activation regularizer
     """
-    def set_param(self, p):
-        self.p = p
-
-    def set_layer(self, layer):
-        self.layer = layer
+    def set_param(self, mean, logsigma, prior_mean=0, prior_logsigma=1):
+        self.mean = mean
+        self.logsigma = logsigma
+        self.prior_mean = prior_mean
+        self.prior_logsigma = prior_logsigma
 
     def __call__(self, loss):
         # See Variational Auto-Encoding Bayes by Kingma and Welling.
-        mean, logsigma = self.layer.get_output(True)
-        kl = -.5 - logsigma + .5 * (mean**2
-                                    + T.exp(2 * logsigma))
-        loss += kl.mean()
+        mean, logsigma = self.mean, self.logsigma
+        kl = (self.prior_logsigma - logsigma
+              + 0.5 * (K.exp(2 * logsigma) + (mean - self.prior_mean) ** 2)
+              / K.exp(2 * self.prior_log_sigma) - 0.5)
+        loss += kl.sum(axis=-1).mean()
         return loss
 
     def get_config(self):
