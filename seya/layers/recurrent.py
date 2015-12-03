@@ -3,7 +3,7 @@ import theano
 import theano.tensor as T
 
 from keras.layers.recurrent import Recurrent, GRU
-from keras.utils.theano_utils import shared_zeros
+from keras import backend as K
 
 
 def _get_reversed_input(self, train=False):
@@ -16,7 +16,7 @@ def _get_reversed_input(self, train=False):
 
 class Bidirectional(Recurrent):
     def __init__(self, forward=None, backward=None, return_sequences=False,
-                 truncate_gradient=-1, forward_conf=None, backward_conf=None):
+                 forward_conf=None, backward_conf=None):
         assert forward is not None or forward_conf is not None, "Must provide a forward RNN or a forward configuration"
         assert backward is not None or backward_conf is not None, "Must provide a backward RNN or a backward configuration"
         super(Bidirectional, self).__init__()
@@ -33,17 +33,10 @@ class Bidirectional(Recurrent):
             from keras.utils.layer_utils import container_from_config
             self.backward = container_from_config(backward_conf)
         self.return_sequences = return_sequences
-        self.truncate_gradient = truncate_gradient
         self.output_dim = self.forward.output_dim + self.backward.output_dim
-        #if self.forward.output_dim != self.backward.output_dim:
-        #    raise ValueError("Make sure `forward` and `backward` have " +
-        #                     "the same `ouput_dim.`")
 
         if not (self.return_sequences == self.forward.return_sequences == self.backward.return_sequences):
             raise ValueError("Make sure 'return_sequences' is equal for self,"
-                             " forward and backward.")
-        if not (self.truncate_gradient == self.forward.truncate_gradient == self.backward.truncate_gradient):
-            raise ValueError("Make sure 'truncate_gradient' is equal for self,"
                              " forward and backward.")
 
     def build(self):
@@ -68,8 +61,6 @@ class Bidirectional(Recurrent):
     @property
     def output_shape(self):
         input_shape = self.input_shape
-        #f_out = self.forward.output_dim
-        #b_out = self.backward.output_dim
         output_dim = self.output_dim
         if self.return_sequences:
             return (input_shape[0], input_shape[1], output_dim)
@@ -86,15 +77,14 @@ class Bidirectional(Recurrent):
         return {'name': self.__class__.__name__,
                 'forward_conf': self.forward.get_config(),
                 'backward_conf': self.backward.get_config(),
-                'return_sequences': self.return_sequences,
-                'truncate_gradient': self.truncate_gradient}
+                'return_sequences': self.return_sequences}
 
 
 class StatefulGRU(GRU):
     def __init__(self, batch_size, output_dim=128,
                  init='glorot_uniform', inner_init='orthogonal',
                  activation='sigmoid', inner_activation='hard_sigmoid',
-                 weights=None, truncate_gradient=-1, return_sequences=False,
+                 weights=None, return_sequences=False,
                  input_dim=None, input_length=None, **kwargs):
 
         self.batch_size = batch_size
@@ -106,13 +96,13 @@ class StatefulGRU(GRU):
         super(StatefulGRU, self).__init__(
             output_dim, init=init, inner_init=inner_init,
             activation=activation, inner_activation=inner_activation,
-            weights=weights, truncate_gradient=truncate_gradient,
+            weights=weights,
             return_sequences=return_sequences,
             input_dim=input_dim, input_length=input_length, **kwargs)
 
     def build(self):
         super(StatefulGRU, self).build()
-        self.h = shared_zeros((self.batch_size, self.output_dim))  # Here is the state
+        self.h = K.zeros((self.batch_size, self.output_dim))  # Here is the state
 
     def get_output(self, train=False):
         X = self.get_input(train)
@@ -126,12 +116,11 @@ class StatefulGRU(GRU):
             self._step,
             sequences=[x_z, x_r, x_h, padded_mask],
             outputs_info=self.h[:X.shape[1]],
-            non_sequences=[self.U_z, self.U_r, self.U_h],
-            truncate_gradient=self.truncate_gradient)
+            non_sequences=[self.U_z, self.U_r, self.U_h])
 
         self.updates = ((self.h, outputs[-1]), )  # initial state of next batch
-                                                # is the last state of this
-                                                # batch
+                                                  # is the last state of this
+                                                  # batch
         if self.return_sequences:
             return outputs.dimshuffle((1, 0, 2))
         return outputs[-1]
@@ -147,5 +136,4 @@ class StatefulGRU(GRU):
                 "inner_init": self.inner_init.__name__,
                 "activation": self.activation.__name__,
                 "inner_activation": self.inner_activation.__name__,
-                "truncate_gradient": self.truncate_gradient,
                 "return_sequences": self.return_sequences}
