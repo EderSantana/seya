@@ -31,24 +31,28 @@ def apply_layer(layer, X):
 
 
 def apply_model(model, X):
-    class TEMP:
-        def __init__(self, X):
-            self.X = X
+    # class TEMP(object):
+    #     def __init__(self, X):
+    #         self.X = X
 
-        def get_output(self, train=False):
-            return self.X
-    tmp1 = model.layers[0].input
+    #     def get_output(self, train=False):
+    #         return self.X
+    # tmp1 = model.layers[0].input
 
-    model.layers[0].input = X
-    if hasattr(model.layers[0], 'previous'):
-        tmp2 = model.layers[0].previous
-        model.layers[0].previous = TEMP(X)
+    # model.layers[0].input = X
+    # if hasattr(model.layers[0], 'previous'):
+    #     tmp2 = model.layers[0].previous
+    #     model.layers[0].previous = TEMP(X)
 
+    # Y = model.get_output()
+
+    # model.layers[0].input = tmp1
+    # if hasattr(model.layers[0], 'previous'):
+    #     model.layers[0].previous = tmp2
+    tmp = model.layers[0].get_input
+    model.layers[0].get_input = lambda _: X
     Y = model.get_output()
-
-    model.layers[0].input = tmp1
-    if hasattr(model.layers[0], 'previous'):
-        model.layers[0].previous = tmp2
+    model.layers[0].get_input = tmp
 
     return Y
 
