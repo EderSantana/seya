@@ -5,6 +5,7 @@ import theano.tensor as T
 from keras.layers.core import Layer
 
 from ..utils import apply_model
+
 floatX = theano.config.floatX
 
 

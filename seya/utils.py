@@ -41,12 +41,14 @@ def apply_model(model, X):
     tmp2 = model.layers[0].previous
 
     model.layers[0].input = X
-    model.layers[0].previous = TEMP(X)
+    if hasattr(model.layers[0], 'previous'):
+        model.layers[0].previous = TEMP(X)
 
     Y = model.get_output()
 
     model.layers[0].input = tmp1
-    model.layers[0].previous = tmp2
+    if hasattr(model.layers[0], 'previous'):
+        model.layers[0].previous = tmp2
 
     return Y
 
