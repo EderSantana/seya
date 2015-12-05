@@ -11,10 +11,11 @@ from seya.utils import apply_layer
 
 
 class ConvGRU(Recurrent):
-    def __init__(self, filter_dim, reshape_dim, subsample=(1, 1),
+    def __init__(self, filter_dim, reshape_dim, batch_size, subsample=(1, 1),
                  init='glorot_uniform', inner_init='glorot_uniform',
                  activation='sigmoid', inner_activation='hard_sigmoid',
                  weights=None, **kwargs):
+        self.batch_size = batch_size
         self.border_mode = 'same'
         self.filter_dim = filter_dim
         self.reshape_dim = reshape_dim
@@ -31,12 +32,14 @@ class ConvGRU(Recurrent):
         super(ConvGRU, self).__init__(**kwargs)
 
     def build(self):
+        batch_size = self.batch_size
+        input_dim = self.input_shape
         bm = self.border_mode
         reshape_dim = self.reshape_dim
         hidden_dim = self.output_dim
 
         nb_filter, nb_rows, nb_cols = self.filter_dim
-        self.input = K.placeholder(ndim=3)
+        self.input = K.placeholder(shape=(batch_size, input_dim[1], input_dim[2]))
 
         self.b_h = K.zeros((nb_filter,))
         self.b_r = K.zeros((nb_filter,))
@@ -70,14 +73,15 @@ class ConvGRU(Recurrent):
 
     def get_initial_states(self, X):
         hidden_dim = np.prod(self.output_dim)
-        I = K.zeros_like(X)[:, 0, :]
-        O = K.zeros((self.input_shape[-1], hidden_dim))
-        h = K.dot(I, O)
+        # I = K.zeros_like(X)[:, 0, :]
+        # O = K.zeros((self.input_shape[-1], hidden_dim))
+        # h = K.dot(I, O)
+        h = K.zeros((self.batch_size, hidden_dim))
         return [h, ]
 
     def step(self, x, states):
-        input_shape = (-1, ) + self.reshape_dim
-        hidden_dim = (-1, ) + self.output_dim
+        input_shape = (self.batch_size, ) + self.reshape_dim
+        hidden_dim = (self.batch_size, ) + self.output_dim
         nb_filter, nb_rows, nb_cols = self.output_dim
         h_tm1 = K.reshape(states[0], hidden_dim)
 

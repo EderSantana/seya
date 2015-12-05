@@ -18,6 +18,7 @@ class TestConvGRU(unittest.TestCase):
         nb_samples, timesteps, ndim, filter_dim = 5, 10, 28, 3
         input_flat = ndim ** 2
         layer = ConvGRU(filter_dim=(1, filter_dim, filter_dim), reshape_dim=(1, ndim, ndim),
+                        batch_size=nb_samples,
                         input_shape=(timesteps, input_flat),
                         return_sequences=True)
         model = Sequential()
