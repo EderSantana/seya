@@ -6,8 +6,21 @@ class GaussianKL(Regularizer):
     """ KL-divergence between two gaussians.
     Useful for Variational AutoEncoders.
     Use this as an activation regularizer
+
+    Parameters:
+    -----------
+    mean, logsigma: parameters of the input distributions
+    prior_mean, prior_logsigma: paramaters of the desired distribution
+    regularizer_scale: Rescales the regularization cost. Keep this 1 for most cases.
+
+    Notes:
+    ------
+    See seya.layers.variational.VariationalDense for usage example
+
     """
-    def __init__(self, mean, logsigma, prior_mean=0, prior_logsigma=1):
+    def __init__(self, mean, logsigma, prior_mean=0, prior_logsigma=1,
+                 regularizer_scale=1):
+        self.regularizer_scale = regularizer_scale
         self.mean = mean
         self.logsigma = logsigma
         self.prior_mean = prior_mean
@@ -20,7 +33,7 @@ class GaussianKL(Regularizer):
         kl = (self.prior_logsigma - logsigma
               + 0.5 * (K.exp(2 * logsigma) + (mean - self.prior_mean) ** 2)
               / K.exp(2 * self.prior_logsigma))
-        loss += kl.mean()
+        loss += kl.mean() * self.regularizer_scale
         return loss
 
     def get_config(self):
