@@ -1,7 +1,6 @@
 import numpy as np
 import theano
 import theano.tensor as T
-from keras.layers.core import Activation
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 
@@ -13,42 +12,15 @@ def theano_rng(seed=123):
     return MRG_RandomStreams(seed=seed)
 
 
-def apply_layer(layer, X):
-    flag = False
-    try:
-        tmp = layer.input
-        flag = True
-    except:
-        pass
-    if isinstance(layer, Activation):
-        return layer.activation(X)
-    else:
-        layer.input = X
-        Y = layer.get_output()
-        if flag:
-            layer.input = tmp
-        return Y
+def apply_layer(layer, X, train=False):
+    tmp = layer.get_input
+    layer.get_input = lambda _: X
+    Y = layer.get_output(train=train)
+    layer.get_input = tmp
+    return Y
 
 
 def apply_model(model, X):
-    # class TEMP(object):
-    #     def __init__(self, X):
-    #         self.X = X
-
-    #     def get_output(self, train=False):
-    #         return self.X
-    # tmp1 = model.layers[0].input
-
-    # model.layers[0].input = X
-    # if hasattr(model.layers[0], 'previous'):
-    #     tmp2 = model.layers[0].previous
-    #     model.layers[0].previous = TEMP(X)
-
-    # Y = model.get_output()
-
-    # model.layers[0].input = tmp1
-    # if hasattr(model.layers[0], 'previous'):
-    #     model.layers[0].previous = tmp2
     tmp = model.layers[0].get_input
     model.layers[0].get_input = lambda _: X
     Y = model.get_output()
