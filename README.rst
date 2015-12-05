@@ -28,9 +28,9 @@ Features
 * Sparse coding
 * Bidirectional RNN example_
 * DRAW_
-* Neural Turing Machines_
+* `Neural Turing Machines`_
 
 .. _WIP: https://github.com/fchollet/keras/issues/620
 .. _example: https://github.com/EderSantana/seya/blob/master/examples/imdb_brnn.py
 .. _DRAW: https://github.com/EderSantana/seya/blob/master/examples/DRAW.ipynb
-.. _Machines:
+.. _Neural Turing Machines: https://github.com/EderSantana/seya/blob/master/examples/NTM.ipynb
