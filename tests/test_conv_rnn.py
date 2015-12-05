@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 
 from keras.models import Sequential
-from seya.sandbox.conv_rnn import ConvGRU
+from seya.layers.conv_rnn import ConvGRU
 
 
 class TestConvGRU(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestConvGRU(unittest.TestCase):
 
         x = np.random.randn(nb_samples, timesteps, input_flat)
         y = model.predict(x)
-        assert y.shape == (nb_samples, 1, ndim, ndim)
+        assert y.shape == (nb_samples, timesteps, input_flat)
 
 
 if __name__ == '__main__':

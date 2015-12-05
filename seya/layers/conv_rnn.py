@@ -12,10 +12,9 @@ from seya.utils import apply_layer
 
 class ConvGRU(Recurrent):
     def __init__(self, filter_dim, reshape_dim, subsample=(1, 1),
-                 init='glorot_uniform', inner_init='orthogonal',
+                 init='glorot_uniform', inner_init='glorot_uniform',
                  activation='sigmoid', inner_activation='hard_sigmoid',
-                 weights=None, return_sequences=False,
-                 go_backwards=False, **kwargs):
+                 weights=None, **kwargs):
         self.border_mode = 'same'
         self.filter_dim = filter_dim
         self.reshape_dim = reshape_dim
@@ -23,9 +22,7 @@ class ConvGRU(Recurrent):
         self.inner_init = initializations.get(inner_init)
         self.activation = activations.get(activation)
         self.inner_activation = activations.get(inner_activation)
-        self.return_sequences = return_sequences
         self.initial_weights = weights
-        self.go_backwards = go_backwards
 
         self.subsample = tuple(subsample)
         self.output_dim = (filter_dim[0], reshape_dim[1]//self.subsample[0],
@@ -64,8 +61,7 @@ class ConvGRU(Recurrent):
 
         self.max_pool = MaxPooling2D(pool_size=self.subsample)
 
-        self.params = [self.b_h, self.b_r, self.b_z] + \
-            self.conv_h.params + self.conv_z.params + self.conv_r.params + \
+        self.params = self.conv_h.params + self.conv_z.params + self.conv_r.params + \
             self.conv_x_h.params + self.conv_x_z.params + self.conv_x_r.params
 
         if self.initial_weights is not None:
@@ -81,10 +77,11 @@ class ConvGRU(Recurrent):
 
     def step(self, x, states):
         input_shape = (-1, ) + self.reshape_dim
+        hidden_dim = (-1, ) + self.output_dim
         nb_filter, nb_rows, nb_cols = self.output_dim
-        h_tm1 = states[0]
+        h_tm1 = K.reshape(states[0], hidden_dim)
 
-        x_t = K.reshape(x, (5, 1, 28, 28))
+        x_t = K.reshape(x, input_shape)
         xz_t = apply_layer(self.conv_x_z, x_t)
         xr_t = apply_layer(self.conv_x_r, x_t)
         xh_t = apply_layer(self.conv_x_h, x_t)
@@ -97,6 +94,7 @@ class ConvGRU(Recurrent):
         r = self.inner_activation(xr_t + apply_layer(self.conv_r, h_tm1))
         hh_t = self.activation(xh_t + apply_layer(self.conv_h, r * h_tm1))
         h_t = z * h_tm1 + (1 - z) * hh_t
+        h_t = K.flatten(h_t)
         return h_t, [h_t, ]
 
     @property
