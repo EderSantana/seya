@@ -3,7 +3,7 @@ import numpy as np
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.recurrent import Recurrent
-from keas.layers.core import MaskedLayer
+from keras.layers.core import MaskedLayer
 from keras import initializations
 from keras import activations
 from keras import backend as K
