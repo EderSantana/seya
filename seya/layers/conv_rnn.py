@@ -3,11 +3,12 @@ import numpy as np
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.recurrent import Recurrent
+from keas.layers.core import MaskedLayer
 from keras import initializations
 from keras import activations
 from keras import backend as K
 
-from seya.utils import apply_layer
+from seya.utils import apply_layer, apply_model
 
 
 class ConvGRU(Recurrent):
@@ -73,9 +74,6 @@ class ConvGRU(Recurrent):
 
     def get_initial_states(self, X):
         hidden_dim = np.prod(self.output_dim)
-        # I = K.zeros_like(X)[:, 0, :]
-        # O = K.zeros((self.input_shape[-1], hidden_dim))
-        # h = K.dot(I, O)
         h = K.zeros((self.batch_size, hidden_dim))
         return [h, ]
 
@@ -122,3 +120,37 @@ class ConvGRU(Recurrent):
                   "go_backwards": self.go_backwards}
         base_config = super(ConvGRU, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class TimeDistributedModel(MaskedLayer):
+    def __init__(self, model, batch_size, **kwargs):
+        self.batch_size = batch_size
+        self.model = model
+        self.reshape_dim = (self.batch_size, ) + self.model.input_shape[1:]
+        super(TimeDistributedModel, self).__init__(**kwargs)
+
+    def build(self):
+        input_shape = self.input_shape
+        self.input = K.placeholder(shape=(self.batch_size, input_shape[1],
+                                          input_shape[2]))
+        self.model.build()
+        self.parmas = self.model.params
+
+    def _step(self, x_t, *args):
+        x_t = K.reshape(x_t, self.reshape_dim)
+        return apply_model(self.model, x_t)
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        batch_size, time_len = X.shape[:2]
+        X = X.flatten(ndim=2)  # (sample*time, dim)
+        X = K.reshape(X, self.reshape_dim)  # (sample*time, dim1, dim2, ...)
+        Y = apply_model(self.model, X)
+        Y = K.reshape(Y, (batch_size, time_len, -1))  # (sample, time, dim_out)
+        return Y
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        output_shape = self.model.output_shape
+        return input_shape[0], input_shape[1], np.prod(output_shape[1:])
