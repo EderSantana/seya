@@ -1,57 +1,21 @@
 import numpy as np
-from scipy.linalg import circulant
 
 import theano
 import theano.tensor as T
 floatX = theano.config.floatX
 
 from keras.layers.recurrent import Recurrent, GRU, LSTM
-from keras.utils.theano_utils import shared_zeros, alloc_zeros_matrix, shared_scalar
+from keras import backend as K
 tol = 1e-4
 
 
-def _update_controller(self, inp, h_tm1, M, mask):
+def _update_controller(self, inp, h_tm1, M):
     """We have to update the inner RNN inside the NTM, this
     is the function to do it. Pretty much copy+pasta from Keras
     """
     x = T.concatenate([inp, M], axis=-1)
-    # get inputs
-    if self.inner_rnn == 'gru':
-        x_z = T.dot(x, self.rnn.W_z) + self.rnn.b_z
-        x_r = T.dot(x, self.rnn.W_r) + self.rnn.b_r
-        x_h = T.dot(x, self.rnn.W_h) + self.rnn.b_h
-
-    elif self.inner_rnn == 'lstm':
-        xi = T.dot(x, self.rnn.W_i) + self.rnn.b_i
-        xf = T.dot(x, self.rnn.W_f) + self.rnn.b_f
-        xc = T.dot(x, self.rnn.W_c) + self.rnn.b_c
-        xo = T.dot(x, self.rnn.W_o) + self.rnn.b_o
-
-    elif self.inner_rnn == 'simple':
-        x = T.dot(x, self.rnn.W) + self.rnn.b
-
     # update state
-    if self.inner_rnn == 'gru':
-        h = self.rnn._step(x_z, x_r, x_h, 1., h_tm1[0],
-                           self.rnn.U_z,
-                           self.rnn.U_r,
-                           self.rnn.U_h)
-        h = mask[:, None] * h + (1-mask[:, None])*h_tm1[0]
-        h = (h, )
-
-    elif self.inner_rnn == 'lstm':
-        h = self.rnn._step(xi, xf, xo, xc, 1.,
-                           h_tm1[1], h_tm1[0],
-                           self.rnn.U_i, self.rnn.U_f,
-                           self.rnn.U_o, self.rnn.U_c)
-        h = h[::-1]
-        h = tuple([mask[:, None]*h[i] +
-                   (1-mask[:, None])*h_tm1[i] for i in range(len(h))])
-
-    elif self.inner_rnn == 'simple':
-        h = self.rnn._step(x, 1, h_tm1[0], self.rnn.U)
-        h = mask[:, None] * h + (1-mask[:, None])*h_tm1[0]
-        h = (h, )
+    _, h = self.rnn.step(x, h_tm1)
 
     return h
 
@@ -112,7 +76,7 @@ class NeuralTuringMachine(Recurrent):
 
     """
     def __init__(self, output_dim, n_slots, m_length, shift_range=3,
-                 inner_rnn='gru', truncate_gradient=-1, return_sequences=False,
+                 inner_rnn='gru',
                  init='glorot_uniform', inner_init='orthogonal',
                  input_dim=None, input_length=None, **kwargs):
         self.output_dim = output_dim
@@ -122,8 +86,6 @@ class NeuralTuringMachine(Recurrent):
         self.init = init
         self.inner_init = inner_init
         self.inner_rnn = inner_rnn
-        self.return_sequences = return_sequences
-        self.truncate_gradient = truncate_gradient
 
         self.input_dim = input_dim
         self.input_length = input_length
@@ -154,31 +116,31 @@ class NeuralTuringMachine(Recurrent):
 
         # initial memory, state, read and write vecotrs
         self.M = theano.shared((.001*np.ones((1,)).astype(floatX)))
-        self.init_h = shared_zeros((self.output_dim))
+        self.init_h = K.zeros((self.output_dim))
         self.init_wr = self.rnn.init((self.n_slots,))
         self.init_ww = self.rnn.init((self.n_slots,))
 
         # write
         self.W_e = self.rnn.init((self.output_dim, self.m_length))  # erase
-        self.b_e = shared_zeros((self.m_length))
+        self.b_e = K.zeros((self.m_length))
         self.W_a = self.rnn.init((self.output_dim, self.m_length))  # add
-        self.b_a = shared_zeros((self.m_length))
+        self.b_a = K.zeros((self.m_length))
 
         # get_w  parameters for reading operation
         self.W_k_read = self.rnn.init((self.output_dim, self.m_length))
         self.b_k_read = self.rnn.init((self.m_length, ))
         self.W_c_read = self.rnn.init((self.output_dim, 3))  # 3 = beta, g, gamma see eq. 5, 7, 9
-        self.b_c_read = shared_zeros((3))
+        self.b_c_read = K.zeros((3))
         self.W_s_read = self.rnn.init((self.output_dim, self.shift_range))
-        self.b_s_read = shared_zeros((self.shift_range))  # b_s lol! not intentional
+        self.b_s_read = K.zeros((self.shift_range))  # b_s lol! not intentional
 
         # get_w  parameters for writing operation
         self.W_k_write = self.rnn.init((self.output_dim, self.m_length))
         self.b_k_write = self.rnn.init((self.m_length, ))
         self.W_c_write = self.rnn.init((self.output_dim, 3))  # 3 = beta, g, gamma see eq. 5, 7, 9
-        self.b_c_write = shared_zeros((3))
+        self.b_c_write = K.zeros((3))
         self.W_s_write = self.rnn.init((self.output_dim, self.shift_range))
-        self.b_s_write = shared_zeros((self.shift_range))
+        self.b_s_write = K.zeros((self.shift_range))
 
         self.C = _circulant(self.n_slots, self.shift_range)
 
@@ -195,27 +157,27 @@ class NeuralTuringMachine(Recurrent):
             self.init_h, self.init_wr, self.init_ww]
 
         if self.inner_rnn == 'lstm':
-            self.init_c = shared_zeros((self.output_dim))
+            self.init_c = K.zeros((self.output_dim))
             self.params = self.params + [self.init_c, ]
 
     def _read(self, w, M):
         return (w[:, :, None]*M).sum(axis=1)
 
-    def _write(self, w, e, a, M, mask):
+    def _write(self, w, e, a, M):
         Mtilda = M * (1 - w[:, :, None]*e[:, None, :])
         Mout = Mtilda + w[:, :, None]*a[:, None, :]
-        return mask[:, None, None]*Mout + (1-mask[:, None, None])*M
+        return Mout
 
     def _get_content_w(self, beta, k, M):
         num = beta[:, None] * _cosine_distance(M, k)
         return _softmax(num)
 
-    def _get_location_w(self, g, s, C, gamma, wc, w_tm1, mask):
+    def _get_location_w(self, g, s, C, gamma, wc, w_tm1):
         wg = g[:, None] * wc + (1-g[:, None])*w_tm1
         Cs = (C[None, :, :, :] * wg[:, None, None, :]).sum(axis=3)
         wtilda = (Cs * s[:, :, None]).sum(axis=1)
         wout = _renorm(wtilda ** gamma[:, None])
-        return mask[:, None] * wout + (1-mask[:, None])*w_tm1
+        return wout
 
     def _get_controller_output(self, h, W_k, b_k, W_c, b_c, W_s, b_s):
         k = T.tanh(T.dot(h, W_k) + b_k)  # + 1e-6
@@ -226,59 +188,23 @@ class NeuralTuringMachine(Recurrent):
         s = T.nnet.softmax(T.dot(h, W_s) + b_s)
         return k, beta, g, gamma, s
 
-    def _get_initial_states(self, batch_size):
-        # init_M = self.M + T.unbroadcast(alloc_zeros_matrix(batch_size, self.n_slots, self.m_length), 0, 1, 2)
-        # init_M = self.M.dimshuffle('x', 0, 1).repeat(batch_size, axis=0)
+    def get_initial_states(self, X):
+        batch_size = X.shape[0]
         init_M = self.M.dimshuffle(0, 'x', 'x').repeat(
-           batch_size, axis=0).repeat(self.n_slots, axis=1).repeat(
-               self.m_length, axis=2)
+            batch_size, axis=0).repeat(self.n_slots, axis=1).repeat(
+            self.m_length, axis=2)
+        init_M = init_M.flatten(ndim=2)
 
         init_h = self.init_h.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
         init_wr = self.init_wr.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
         init_ww = self.init_ww.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
         if self.inner_rnn == 'lstm':
             init_c = self.init_c.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
-            return init_M, T.nnet.softmax(init_wr), T.nnet.softmax(init_ww), init_h, init_c
+            return [init_M, T.nnet.softmax(init_wr), T.nnet.softmax(init_ww),
+                    init_h, init_c]
         else:
-            return init_M, T.nnet.softmax(init_wr), T.nnet.softmax(init_ww), init_h
-
-    def _step(self, x, mask, M_tm1, wr_tm1, ww_tm1, *args):
-        # read
-        if self.inner_rnn == 'lstm':
-            h_tm1 = args[0:2][::-1]  # (cell_tm1, h_tm1)
-        else:
-            h_tm1 = args[0:1]  # (h_tm1, )
-        k_read, beta_read, g_read, gamma_read, s_read = self._get_controller_output(
-            h_tm1[-1], self.W_k_read, self.b_k_read, self.W_c_read, self.b_c_read,
-            self.W_s_read, self.b_s_read)
-        wc_read = self._get_content_w(beta_read, k_read, M_tm1)
-        wr_t = self._get_location_w(g_read, s_read, self.C, gamma_read,
-                                    wc_read, wr_tm1, mask)
-        M_read = self._read(wr_t, M_tm1)
-
-        # update controller
-        h_t = _update_controller(self, x, h_tm1, M_read, mask)
-
-        # write
-        k_write, beta_write, g_write, gamma_write, s_write = self._get_controller_output(
-            h_t[-1], self.W_k_write, self.b_k_write, self.W_c_write,
-            self.b_c_write, self.W_s_write, self.b_s_write)
-        wc_write = self._get_content_w(beta_write, k_write, M_tm1)
-        ww_t = self._get_location_w(g_write, s_write, self.C, gamma_write,
-                                    wc_write, ww_tm1, mask)
-        e = T.nnet.sigmoid(T.dot(h_t[-1], self.W_e) + self.b_e)
-        a = T.tanh(T.dot(h_t[-1], self.W_a) + self.b_a)
-        M_t = self._write(ww_t, e, a, M_tm1, mask)
-
-        return (M_t, wr_t, ww_t) + h_t
-
-    def get_output(self, train=False):
-        outputs = self.get_full_output(train)
-
-        if self.return_sequences:
-            return outputs[-1]
-        else:
-            return outputs[-1][:, -1]
+            return [init_M, T.nnet.softmax(init_wr), T.nnet.softmax(init_ww),
+                    init_h]
 
     @property
     def output_shape(self):
@@ -300,21 +226,63 @@ class NeuralTuringMachine(Recurrent):
         [memory, read_address, write_address, rnn_cell, rnn_state] = F(x)
 
         """
+        # input shape: (nb_samples, time (padded with zeros), input_dim)
         X = self.get_input(train)
-        padded_mask = self.get_padded_shuffled_mask(train, X, pad=1)[:, :, 0]
-        X = X.dimshuffle((1, 0, 2))
+        assert K.ndim(X) == 3
+        if K._BACKEND == 'tensorflow':
+            if not self.input_shape[1]:
+                raise Exception('When using TensorFlow, you should define ' +
+                                'explicitely the number of timesteps of ' +
+                                'your sequences. Make sure the first layer ' +
+                                'has a "batch_input_shape" argument ' +
+                                'including the samples axis.')
 
-        init_states = self._get_initial_states(X.shape[1])
-        outputs, updates = theano.scan(self._step,
-                                       sequences=[X, padded_mask],
-                                       outputs_info=init_states,
-                                       non_sequences=self.params,
-                                       truncate_gradient=self.truncate_gradient)
+        mask = self.get_output_mask(train)
+        if mask:
+            # apply mask
+            X *= K.cast(K.expand_dims(mask), X.dtype)
+            masking = True
+        else:
+            masking = False
 
-        out = [outputs[0].dimshuffle((1, 0, 2, 3)),
-               outputs[1].dimshuffle(1, 0, 2),
-               outputs[2].dimshuffle((1, 0, 2)),
-               outputs[3].dimshuffle((1, 0, 2))]
-        if self.inner_rnn == 'lstm':
-            out + [outputs[4].dimshuffle((1, 0, 2))]
-        return out
+        if self.stateful:
+            initial_states = self.states
+        else:
+            initial_states = self.get_initial_states(X)
+
+        last_output, outputs, states = K.rnn(self.step, X, initial_states,
+                                             go_backwards=self.go_backwards,
+                                             masking=masking)
+        return states
+
+    def step(self, x, states):
+        M_tm1, wr_tm1, ww_tm1 = states[:3]
+        # reshape
+        M_tm1 = M_tm1.reshape((x.shape[0], self.n_slots, self.m_length))
+        # read
+        h_tm1 = states[3:]
+        k_read, beta_read, g_read, gamma_read, s_read = self._get_controller_output(
+            h_tm1[0], self.W_k_read, self.b_k_read, self.W_c_read, self.b_c_read,
+            self.W_s_read, self.b_s_read)
+        wc_read = self._get_content_w(beta_read, k_read, M_tm1)
+        wr_t = self._get_location_w(g_read, s_read, self.C, gamma_read,
+                                    wc_read, wr_tm1)
+        M_read = self._read(wr_t, M_tm1)
+
+        # update controller
+        h_t = _update_controller(self, x, h_tm1, M_read)
+
+        # write
+        k_write, beta_write, g_write, gamma_write, s_write = self._get_controller_output(
+            h_t[0], self.W_k_write, self.b_k_write, self.W_c_write,
+            self.b_c_write, self.W_s_write, self.b_s_write)
+        wc_write = self._get_content_w(beta_write, k_write, M_tm1)
+        ww_t = self._get_location_w(g_write, s_write, self.C, gamma_write,
+                                    wc_write, ww_tm1)
+        e = T.nnet.sigmoid(T.dot(h_t[0], self.W_e) + self.b_e)
+        a = T.tanh(T.dot(h_t[0], self.W_a) + self.b_a)
+        M_t = self._write(ww_t, e, a, M_tm1)
+
+        M_t = M_t.flatten(ndim=2)
+
+        return h_t[0], [M_t, wr_t, ww_t] + h_t

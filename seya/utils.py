@@ -4,6 +4,12 @@ import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 
+def batchwise_function(func, X, batch_size=100):
+    Y = [func(X[i*batch_size:(i+1)*batch_size]) for i in range(0,
+                                                               X.shape[0]//batch_size)]
+    return np.concatenate(Y, axis=0)
+
+
 def alloc_ones_matrix(*dims):
     return T.alloc(np.cast[theano.config.floatX](1.), *dims)
 

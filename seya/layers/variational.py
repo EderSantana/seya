@@ -1,13 +1,39 @@
+from collections import OrderedDict
+
 from keras import backend as K
 from keras.layers.core import Layer
 from keras import initializations, activations
+from keras.layers.convolutional import MaxPooling1D
 
-from seya.regularizers import GaussianKL
+from seya.regularizers import GaussianKL, LambdaRegularizer
 
 
 class VariationalDense(Layer):
-    def __init__(self, output_dim, batch_size, init='glorot_uniform', activation='linear',
-                 weights=None, input_dim=None, **kwargs):
+    """VariationalDense
+        Hidden layer for Variational Autoencoding Bayes method [1].
+        This layer projects the input twice to calculate the mean and variance
+        of a Gaussian distribution. During training, the output is sampled from
+        that distribution as mean + random_noise * variance, during testing the
+        output is the mean, i.e the expected value of the encoded distribution.
+
+        Parameters:
+        -----------
+        batch_size: Both Keras backends need the batch_size to be defined before
+            hand for sampling random numbers. Make sure your batch size is kept
+            fixed during training. You can use any batch size for testing.
+
+        regularizer_scale: By default the regularization is already proberly
+            scaled if you use binary or categorical crossentropy cost functions.
+            In most cases this regularizers should be kept fixed at one.
+
+    """
+    def __init__(self, output_dim, batch_size, init='glorot_uniform',
+                 activation='tanh',
+                 weights=None, input_dim=None, regularizer_scale=1,
+                 prior_mean=0, prior_logsigma=1, **kwargs):
+        self.prior_mean = prior_mean
+        self.prior_logsigma = prior_logsigma
+        self.regularizer_scale = regularizer_scale
         self.batch_size = batch_size
         self.init = initializations.get(init)
         self.activation = activations.get(activation)
@@ -31,22 +57,33 @@ class VariationalDense(Layer):
                        self.b_logsigma]
 
         self.regularizers = []
-        mean, logsigma = self.get_mean_logsigma()
-        self.regularizers.append(GaussianKL(mean, logsigma))
+        reg = self.get_variational_regularization(self.get_input())
+        self.regularizers.append(reg)
 
-    def get_mean_logsigma(self, train=False):
-        X = self.get_input(train)
+    def get_variational_regularization(self, X):
+        mean = self.activation(K.dot(X, self.W_mean) + self.b_mean)
+        logsigma = self.activation(K.dot(X, self.W_logsigma) + self.b_logsigma)
+        return GaussianKL(mean, logsigma,
+                          regularizer_scale=self.regularizer_scale,
+                          prior_mean=self.prior_mean,
+                          prior_logsigma=self.prior_logsigma)
+
+    def get_mean_logsigma(self, X):
         mean = self.activation(K.dot(X, self.W_mean) + self.b_mean)
         logsigma = self.activation(K.dot(X, self.W_logsigma) + self.b_logsigma)
         return mean, logsigma
 
-    def get_output(self, train=False):
-        mean, logsigma = self.get_mean_logsigma(train=train)
+    def _get_output(self, X, train=False):
+        mean, logsigma = self.get_mean_logsigma(X)
         if train:
             eps = K.random_normal((self.batch_size, self.output_dim))
             return mean + K.exp(logsigma) * eps
         else:
             return mean
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        return self._get_output(X, train)
 
     @property
     def output_shape(self):
