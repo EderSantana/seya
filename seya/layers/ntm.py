@@ -6,6 +6,8 @@ floatX = theano.config.floatX
 
 from keras.layers.recurrent import Recurrent, GRU, LSTM
 from keras import backend as K
+
+from seya.utils import rnn_states
 tol = 1e-4
 
 
@@ -250,9 +252,9 @@ class NeuralTuringMachine(Recurrent):
         else:
             initial_states = self.get_initial_states(X)
 
-        last_output, outputs, states = K.rnn(self.step, X, initial_states,
-                                             go_backwards=self.go_backwards,
-                                             masking=masking)
+        states = rnn_states(self.step, X, initial_states,
+                            go_backwards=self.go_backwards,
+                            masking=masking)
         return states
 
     def step(self, x, states):

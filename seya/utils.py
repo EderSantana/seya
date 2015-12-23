@@ -168,3 +168,70 @@ def unroll_scan(fn, sequences, outputs_info, non_sequences, n_steps,
             output_scan.append(T.stack(*l))
 
         return output_scan
+
+
+def rnn_states(step_function, inputs, initial_states,
+               go_backwards=False, masking=True):
+    '''Iterates over the time dimension of a tensor.
+    Parameters
+    ----------
+    inputs: tensor of temporal data of shape (samples, time, ...)
+        (at least 3D).
+    step_function:
+        Parameters:
+            input: tensor with shape (samples, ...) (no time dimension),
+                representing input for the batch of samples at a certain
+                time step.
+            states: list of tensors.
+        Returns:
+            output: tensor with shape (samples, ...) (no time dimension),
+            new_states: list of tensors, same length and shapes
+                as 'states'.
+    initial_states: tensor with shape (samples, ...) (no time dimension),
+        containing the initial values for the states used in
+        the step function.
+    go_backwards: boolean. If True, do the iteration over
+        the time dimension in reverse order.
+    masking: boolean. If true, any input timestep inputs[s, i]
+        that is all-zeros will be skipped (states will be passed to
+        the next step unchanged) and the corresponding output will
+        be all zeros.
+    Returns
+    -------
+    A tuple (last_output, outputs, new_states).
+        last_output: the latest output of the rnn, of shape (samples, ...)
+        outputs: tensor with shape (samples, time, ...) where each
+            entry outputs[s, t] is the output of the step function
+            at time t for sample s.
+        new_states: list of tensors, latest states returned by
+            the step function, of shape (samples, ...).
+    '''
+    inputs = inputs.dimshuffle((1, 0, 2))
+
+    def _step(input, *states):
+        output, new_states = step_function(input, states)
+        if masking:
+            # if all-zero input timestep, return
+            # all-zero output and unchanged states
+            switch = T.any(input, axis=-1, keepdims=True)
+            output = T.switch(switch, output, 0. * output)
+            return_states = []
+            for state, new_state in zip(states, new_states):
+                return_states.append(T.switch(switch, new_state, state))
+            return [output] + return_states
+        else:
+            return [output] + new_states
+
+    results, _ = theano.scan(
+        _step,
+        sequences=inputs,
+        outputs_info=[None] + initial_states,
+        go_backwards=go_backwards)
+
+    # deal with Theano API inconsistency
+    if type(results) is list:
+        states = results[1:]
+    else:
+        states = []
+
+    return states
