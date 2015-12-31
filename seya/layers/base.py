@@ -9,6 +9,20 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 floatX = theano.config.floatX
 
 
+class WinnerTakeAll2D(Layer):
+    def __init__(self, **kwargs):
+        super(WinnerTakeAll2D, self).__init__(**kwargs)
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        if train:
+            M = K.max(X, axis=(2, 3), keepdims=True)
+            R = K.switch(K.equal(X, M), X, 0.)
+            return R
+        else:
+            return X
+
+
 class Lambda(MaskedLayer):
     def __init__(self, func, output_shape, ndim=2):
         super(Lambda, self).__init__()
