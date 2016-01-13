@@ -47,7 +47,7 @@ class ChannelDropout(MaskedLayer):
         X = self.get_input(train)
         if self.p > 0.:
             if train:
-                X = self.channel_dropout(X, level=self.p)
+                X = self.channel_dropout(X)
         return X
 
     def get_config(self):
