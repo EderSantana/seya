@@ -51,3 +51,46 @@ class LambdaRegularizer(Regularizer):
 
     def get_config(self):
         return {"name": self.__class__.__name__}
+
+
+class ActivityCorrentropyRegularizer(Regularizer):
+    def __init__(self, scale, sigma=1.):
+        super(ActivityCorrentropyRegularizer, self).__init__()
+        self.sigma = sigma
+        self.scale = scale
+
+    def set_layer(self, layer):
+        self.layer = layer
+
+    def __call__(self, loss):
+        output = self.layer.get_output(True)
+        loss += self.scale * correntropy(output, self.sigma)
+        return loss
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "sigma": self.sigma,
+                "scale": self.scale}
+
+
+class WeightCorrentropyRegularizer(Regularizer):
+    def __init__(self, scale, sigma=1):
+        super(ActivityCorrentropyRegularizer, self).__init__()
+        self.sigma = sigma
+        self.scale = scale
+
+    def set_param(self, p):
+        self.p = p
+
+    def __call__(self, loss):
+        loss += self.scale * correntropy(self.p, self.sigma)
+        return loss
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "sigma": self.sigma,
+                "scale": self.scale}
+
+
+def correntropy(x, sigma):
+    return K.sum(K.mean(K.exp(x**2/sigma), axis=0))
