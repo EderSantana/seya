@@ -1,12 +1,12 @@
-import theano.tensor as T
+from keras import backend as K
 
 
 def sum_mse(y_true, y_pred):
-    return T.sqr(y_true - y_pred).sum()
+    return K.sqr(y_true - y_pred).sum()
 
 
 def self_cost(y_true, y_pred):
-    return y_pred.sum() + y_true.sum()*0
+    return K.sum(y_pred) + K.sum(y_true)*0
 
 
 def gaussianKL(dumb, y_pred):
@@ -15,5 +15,11 @@ def gaussianKL(dumb, y_pred):
     mean = y_pred[:, :dim]
     logsigma = y_pred[:, dim:]
     # See Variational Auto-Encoding Bayes by Kingma and Welling.
-    kl = -.5 - logsigma + .5 * (mean**2 + T.exp(2 * logsigma))
-    return kl.mean(axis=-1) + 0 * dumb.sum()
+    kl = -.5 - logsigma + .5 * (mean**2 + K.exp(2 * logsigma))
+    return K.mean(kl, axis=-1) + 0 * K.sum(dumb)
+
+
+def correntropy(sigma=1.):
+    def func(y_true, y_pred):
+        return K.sum(K.exp(-K.sqr(y_true - y_pred)/sigma))
+    return func
