@@ -10,7 +10,8 @@ class GaussianKL(Regularizer):
     Parameters:
     -----------
     mean, logsigma: parameters of the input distributions
-    prior_mean, prior_logsigma: paramaters of the desired distribution
+    prior_mean, prior_logsigma: paramaters of the desired distribution (note the
+    log on logsigma)
     regularizer_scale: Rescales the regularization cost. Keep this 1 for most cases.
 
     Notes:
@@ -18,7 +19,7 @@ class GaussianKL(Regularizer):
     See seya.layers.variational.VariationalDense for usage example
 
     """
-    def __init__(self, mean, logsigma, prior_mean=0, prior_logsigma=1,
+    def __init__(self, mean, logsigma, prior_mean=0, prior_logsigma=0,
                  regularizer_scale=1):
         self.regularizer_scale = regularizer_scale
         self.mean = mean
