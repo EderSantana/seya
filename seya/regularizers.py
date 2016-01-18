@@ -54,9 +54,9 @@ class LambdaRegularizer(Regularizer):
         return {"name": self.__class__.__name__}
 
 
-class ActivityCorrentropyRegularizer(Regularizer):
+class CorrentropyActivityRegularizer(Regularizer):
     def __init__(self, scale, sigma=1.):
-        super(ActivityCorrentropyRegularizer, self).__init__()
+        super(CorrentropyActivityRegularizer, self).__init__()
         self.sigma = sigma
         self.scale = scale
 
@@ -74,9 +74,9 @@ class ActivityCorrentropyRegularizer(Regularizer):
                 "scale": self.scale}
 
 
-class WeightCorrentropyRegularizer(Regularizer):
+class CorrentropyWeightRegularizer(Regularizer):
     def __init__(self, scale, sigma=1):
-        super(ActivityCorrentropyRegularizer, self).__init__()
+        super(CorrentropyWeightRegularizer, self).__init__()
         self.sigma = sigma
         self.scale = scale
 
@@ -94,4 +94,4 @@ class WeightCorrentropyRegularizer(Regularizer):
 
 
 def correntropy(x, sigma):
-    return K.sum(K.mean(K.exp(x**2/sigma), axis=0))
+    return -K.sum(K.mean(K.exp(x**2/sigma), axis=0))
