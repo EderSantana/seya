@@ -1,3 +1,5 @@
+import numpy as np
+
 from keras import backend as K
 from keras.regularizers import Regularizer
 
@@ -94,4 +96,4 @@ class CorrentropyWeightRegularizer(Regularizer):
 
 
 def correntropy(x, sigma):
-    return -K.sum(K.mean(K.exp(x**2/sigma), axis=0))
+    return -K.sum(K.mean(K.exp(x**2/sigma), axis=0)) / K.sqrt(2*np.pi*sigma)

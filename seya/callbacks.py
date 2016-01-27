@@ -28,7 +28,7 @@ class RenormalizeWeight(Callback):
 
     def on_batch_begin(self, batch, logs={}):
         W = self.W.get_value()
-        if self.W_shape == 4:
+        if len(self.W_shape) == 4:
             W = W.reshape((self.W_shape[0], -1))
         if self.transpose:
             W = W.T
