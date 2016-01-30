@@ -1,11 +1,8 @@
-from collections import OrderedDict
-
 from keras import backend as K
 from keras.layers.core import Layer
 from keras import initializations, activations
-from keras.layers.convolutional import MaxPooling1D
 
-from seya.regularizers import GaussianKL, LambdaRegularizer
+from seya.regularizers import GaussianKL
 
 
 class VariationalDense(Layer):
