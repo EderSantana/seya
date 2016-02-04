@@ -96,7 +96,7 @@ class ConvGRU(Recurrent):
         r = self.inner_activation(xr_t + apply_layer(self.conv_r, h_tm1))
         hh_t = self.activation(xh_t + apply_layer(self.conv_h, r * h_tm1))
         h_t = z * h_tm1 + (1 - z) * hh_t
-        h_t = K.flatten(h_t)
+        h_t = K.batch_flatten(h_t)
         return h_t, [h_t, ]
 
     @property
@@ -126,7 +126,6 @@ class TimeDistributedModel(MaskedLayer):
     def __init__(self, model, batch_size, **kwargs):
         self.batch_size = batch_size
         self.model = model
-        self.reshape_dim = (self.batch_size, ) + self.model.input_shape[1:]
         super(TimeDistributedModel, self).__init__(**kwargs)
 
     def build(self):
@@ -142,11 +141,12 @@ class TimeDistributedModel(MaskedLayer):
 
     def get_output(self, train=False):
         X = self.get_input()
-        batch_size, time_len = X.shape[:2]
+        batch_size, time_len, dim_out = K.shape(X)
+        reshape_dim = (self.batch_size*time_len, ) + self.model.input_shape[1:]
         X = X.flatten(ndim=2)  # (sample*time, dim)
-        X = K.reshape(X, self.reshape_dim)  # (sample*time, dim1, dim2, ...)
-        Y = apply_model(self.model, X)
-        Y = K.reshape(Y, (batch_size, time_len, -1))  # (sample, time, dim_out)
+        X = K.reshape(X, reshape_dim)  # (sample*time, dim1, dim2, ...)
+        Y = self.model(X)
+        Y = K.reshape(Y, (batch_size, time_len, dim_out))  # (sample, time, dim_out)
         return Y
 
     @property
