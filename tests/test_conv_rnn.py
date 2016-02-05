@@ -19,7 +19,6 @@ class TestConvGRU(unittest.TestCase):
         nb_samples, timesteps, ndim, filter_dim = 5, 10, 28, 3
         input_flat = ndim ** 2
         layer = ConvGRU(filter_dim=(1, filter_dim, filter_dim), reshape_dim=(1, ndim, ndim),
-                        batch_size=nb_samples,
                         input_shape=(timesteps, input_flat),
                         return_sequences=True)
         model = Sequential()
@@ -34,9 +33,12 @@ class TestConvGRU(unittest.TestCase):
         """Just check that the TimeDistributedModel layer can compile and run"""
         nb_samples, timesteps, ndim, filter_dim = 5, 10, 28, 3
         input_flat = ndim ** 2
-        inner = Convolution2D(1, filter_dim, filter_dim, border_mode='same',
-                              input_shape=(1, ndim, ndim))
-        layer = TimeDistributedModel(inner, batch_size=nb_samples,
+
+        inner = Sequential()
+        inner.add(Convolution2D(1, filter_dim, filter_dim, border_mode='same',
+                                input_shape=(1, ndim, ndim)))
+
+        layer = TimeDistributedModel(inner,
                                      input_shape=(nb_samples, timesteps,
                                                   input_flat))
         model = Sequential()

@@ -21,6 +21,10 @@ class GlobalPooling2D(Layer):
         X = self.get_input(train)
         return self.pooling_function(self.pooling_function(X, axis=-1), axis=-1)
 
+    @property
+    def output_shape(self):
+        return self.input_shape[:2]
+
     def get_config(self):
         return {"name": self.__class__.__name__,
                 "pooling_function": self.pooling_function.__name__}

@@ -1,6 +1,8 @@
 from __future__ import division
 import numpy as np
 
+from theano import tensor as T
+
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.recurrent import Recurrent
 from keras.layers.core import MaskedLayer
@@ -12,11 +14,10 @@ from seya.utils import apply_layer, apply_model
 
 
 class ConvGRU(Recurrent):
-    def __init__(self, filter_dim, reshape_dim, batch_size, subsample=(1, 1),
+    def __init__(self, filter_dim, reshape_dim, subsample=(1, 1),
                  init='glorot_uniform', inner_init='glorot_uniform',
                  activation='sigmoid', inner_activation='hard_sigmoid',
                  weights=None, **kwargs):
-        self.batch_size = batch_size
         self.border_mode = 'same'
         self.filter_dim = filter_dim
         self.reshape_dim = reshape_dim
@@ -32,8 +33,20 @@ class ConvGRU(Recurrent):
 
         super(ConvGRU, self).__init__(**kwargs)
 
+    def _get_batch_size(self, X):
+        if K._BACKEND == 'theano':
+            batch_size = X.shape[0]
+        else:
+            batch_size = self.input_shape[0]
+            assert batch_size
+        return batch_size
+
     def build(self):
-        batch_size = self.batch_size
+        if K._BACKEND == 'theano':
+            batch_size = None
+        else:
+            batch_size = self.input_shape[0]
+            assert batch_size
         input_dim = self.input_shape
         bm = self.border_mode
         reshape_dim = self.reshape_dim
@@ -73,13 +86,18 @@ class ConvGRU(Recurrent):
             del self.initial_weights
 
     def get_initial_states(self, X):
+        batch_size = self._get_batch_size(X)
         hidden_dim = np.prod(self.output_dim)
-        h = K.zeros((self.batch_size, hidden_dim))
+        if K._BACKEND == 'theano':
+            h = T.zeros((batch_size, hidden_dim))
+        else:
+            h = K.zeros((batch_size, hidden_dim))
         return [h, ]
 
     def step(self, x, states):
-        input_shape = (self.batch_size, ) + self.reshape_dim
-        hidden_dim = (self.batch_size, ) + self.output_dim
+        batch_size = self._get_batch_size(x)
+        input_shape = (batch_size, ) + self.reshape_dim
+        hidden_dim = (batch_size, ) + self.output_dim
         nb_filter, nb_rows, nb_cols = self.output_dim
         h_tm1 = K.reshape(states[0], hidden_dim)
 
@@ -123,30 +141,60 @@ class ConvGRU(Recurrent):
 
 
 class TimeDistributedModel(MaskedLayer):
-    def __init__(self, model, batch_size, **kwargs):
-        self.batch_size = batch_size
+    def __init__(self, model, **kwargs):
         self.model = model
         super(TimeDistributedModel, self).__init__(**kwargs)
 
+    def _get_batch_size(self, X):
+        if K._BACKEND == 'theano':
+            batch_size = X.shape[0]
+        else:
+            batch_size = self.input_shape[0]
+            assert batch_size
+        return batch_size
+
     def build(self):
+        if K._BACKEND == 'theano':
+            batch_size = None
+        else:
+            batch_size = self.input_shape[0]
+            assert batch_size
         input_shape = self.input_shape
-        self.input = K.placeholder(shape=(self.batch_size, input_shape[1],
+        self.input = K.placeholder(shape=(batch_size, input_shape[1],
                                           input_shape[2]))
         self.model.build()
-        self.parmas = self.model.params
+        self.params = self.model.params
 
     def _step(self, x_t, *args):
         x_t = K.reshape(x_t, self.reshape_dim)
         return apply_model(self.model, x_t)
 
     def get_output(self, train=False):
-        X = self.get_input()
-        batch_size, time_len, dim_out = K.shape(X)
-        reshape_dim = (self.batch_size*time_len, ) + self.model.input_shape[1:]
+        X = self.get_input(train)
+
+        def step(x, states):
+            x = K.reshape(x, (-1, ) + self.model.input_shape[1:])
+            output = self.model(x, train=train)
+            return output, []
+
+        last_output, outputs, states = K.rnn(step, X,
+                                             initial_states=[],
+                                             mask=None)
+        return outputs
+
+    def get_output2(self, train=False):
+        X = self.get_input(train)
+        if K._BACKEND == 'theano':
+            batch_size = K.shape(X)[0]
+            time_len = K.shape(X)[1]
+        else:
+            batch_size, time_len = self.input_shape[:2]
+        reshape_dim = (batch_size*time_len, ) + self.model.input_shape[1:]
+        out_dim = np.prod(self.model.output_shape[1:])
         X = X.flatten(ndim=2)  # (sample*time, dim)
         X = K.reshape(X, reshape_dim)  # (sample*time, dim1, dim2, ...)
-        Y = self.model(X)
-        Y = K.reshape(Y, (batch_size, time_len, dim_out))  # (sample, time, dim_out)
+        Y = self.model(X, train=train)
+        Y = K.reshape(Y, (batch_size, time_len, out_dim))  # (sample, time, dim_out)
         return Y
 
     @property

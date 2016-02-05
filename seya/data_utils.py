@@ -141,3 +141,7 @@ class HDF5Tensor():
     def shape(self):
         return tuple((self.end - self.start, self.time_end -
                       self.time_start) + self.data.shape[2:])
+
+    @property
+    def ndim(self):
+        return len(self.data.shape)
