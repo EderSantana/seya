@@ -59,3 +59,21 @@ class ChannelDropout(MaskedLayer):
                   'p': self.p}
         base_config = super(ChannelDropout, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class WinnerTakeAll2D(Layer):
+    """Spatial Winner-Take-All
+    ref: Winner-Take-All Autoencoders by  Alireza Makhzani, Brendan Frey
+
+    """
+    def __init__(self, **kwargs):
+        super(WinnerTakeAll2D, self).__init__(**kwargs)
+
+    def winner_take_all(self, X):
+        M = K.max(X, axis=(2, 3), keepdims=True)
+        R = K.switch(K.equal(X, M), X, 0.)
+        return R
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        return self.winner_take_all(X)
