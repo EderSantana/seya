@@ -43,7 +43,7 @@ class VariationalDense(Layer):
         super(VariationalDense, self).__init__(**kwargs)
 
     def build(self):
-        input_dim = self.input_shape[1]
+        input_dim = self.input_shape[-1]
 
         self.W_mean = self.init((input_dim, self.output_dim))
         self.b_mean = K.zeros((self.output_dim,))
@@ -73,7 +73,10 @@ class VariationalDense(Layer):
     def _get_output(self, X, train=False):
         mean, logsigma = self.get_mean_logsigma(X)
         if train:
-            eps = K.random_normal((self.batch_size, self.output_dim))
+            if K._BACKEND == 'theano':
+                eps = K.random_normal((X.shape[0], self.output_dim))
+            else:
+                eps = K.random_normal((self.batch_size, self.output_dim))
             return mean + K.exp(logsigma) * eps
         else:
             return mean
@@ -85,3 +88,31 @@ class VariationalDense(Layer):
     @property
     def output_shape(self):
         return (self.input_shape[0], self.output_dim)
+
+
+class TimeDistributedVAE(VariationalDense):
+    def __init__(self, time_length, **kwargs):
+        super(TimeDistributedVAE, self).__init__(**kwargs)
+        self.input = K.placeholder(ndim=3)
+        self.time_length = time_length
+        self.batch_size = self.batch_size * self.time_length
+
+    def get_variational_regularization(self, X):
+        X = K.reshape(X, (-1, self.input_shape[-1]))
+        mean = self.activation(K.dot(X, self.W_mean) + self.b_mean)
+        logsigma = self.activation(K.dot(X, self.W_logsigma) + self.b_logsigma)
+        return GaussianKL(mean, logsigma,
+                          regularizer_scale=self.regularizer_scale,
+                          prior_mean=self.prior_mean,
+                          prior_logsigma=self.prior_logsigma)
+
+    def get_output(self, train=False):
+        X = self.get_input()
+        X = K.reshape(X, (-1, self.input_shape[-1]))
+        outputs = self._get_output(X, train=train)
+        outputs = K.reshape(X, (-1, self.time_length, self.output_dim))
+        return outputs
+
+    @property
+    def output_shape(self):
+        return (self.input_shape[0], self.time_length, self.output_dim)
