@@ -11,6 +11,12 @@ from seya.utils import rnn_states
 tol = 1e-4
 
 
+def _wta(X):
+    M = K.max(X, axis=-1, keepdims=True)
+    R = K.switch(K.equal(X, M), X, 0.)
+    return R
+
+
 def _update_controller(self, inp, h_tm1, M):
     """We have to update the inner RNN inside the NTM, this
     is the function to do it. Pretty much copy+pasta from Keras
@@ -101,6 +107,7 @@ class NeuralTuringMachine(Recurrent):
 
         if self.inner_rnn == 'gru':
             self.rnn = GRU(
+                activation='relu',
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
@@ -110,6 +117,7 @@ class NeuralTuringMachine(Recurrent):
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
+                forget_bias_init='zero',
                 inner_init=self.inner_init)
         else:
             raise ValueError('this inner_rnn is not implemented yet.')
@@ -184,9 +192,9 @@ class NeuralTuringMachine(Recurrent):
     def _get_controller_output(self, h, W_k, b_k, W_c, b_c, W_s, b_s):
         k = T.tanh(T.dot(h, W_k) + b_k)  # + 1e-6
         c = T.dot(h, W_c) + b_c
-        beta = T.nnet.relu(c[:, 0]) + 1e-6
+        beta = T.nnet.relu(c[:, 0]) + 1e-4
         g = T.nnet.sigmoid(c[:, 1])
-        gamma = T.nnet.relu(c[:, 2]) + 1
+        gamma = T.nnet.relu(c[:, 2]) + 1.0001
         s = T.nnet.softmax(T.dot(h, W_s) + b_s)
         return k, beta, g, gamma, s
 
