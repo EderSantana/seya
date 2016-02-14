@@ -66,7 +66,7 @@ class GRUwithReadout(GRU):
         self.U_h = self.inner_init((self.state_dim, self.state_dim))
         self.b_h = shared_zeros((self.state_dim))
 
-        self.params = [
+        self.trainable_weights = [
             self.init_h,
             self.W_z, self.U_z, self.b_z,
             self.W_r, self.U_r, self.b_r,
@@ -108,7 +108,7 @@ class GRUwithReadout(GRU):
             self._step,
             sequences=[X, padded_mask],
             outputs_info=[init_h, init_o],
-            non_sequences=[self.U_z, self.U_r, self.U_h] + self.readout.params,
+            non_sequences=[self.U_z, self.U_r, self.U_h] + self.readout.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_sequences:

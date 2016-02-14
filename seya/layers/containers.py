@@ -20,7 +20,7 @@ class Recursive(Layer):
         when it has exactly one input and one output.
 
         inherited from Layer:
-            - get_params
+            - get.trainable_weights
             - get_output_mask
             - supports_masked_input
             - get_weights
@@ -44,7 +44,7 @@ class Recursive(Layer):
         self.node_config = []  # dicts
         self.state_map = {}
 
-        self.params = []
+        self.trainable_weights = []
         self.regularizers = []
         self.constraints = []
         self.updates = []
@@ -176,8 +176,8 @@ class Recursive(Layer):
                                  'inputs': inputs,
                                  'merge_mode': merge_mode})
         layer.init_updates()
-        params, regularizers, constraints, updates = layer.get_params()
-        self.params += params
+       .trainable_weights, regularizers, constraints, updates = layer.get.trainable_weights()
+        self.trainable_weights +=.trainable_weights
         self.regularizers += regularizers
         self.constraints += constraints
         self.updates += updates
@@ -242,7 +242,7 @@ class Recursive(Layer):
         outputs, updates = scan(self._step,
                                 sequences=X,
                                 outputs_info=self.initial_states,
-                                non_sequences=self.params + self.get_constants(),
+                                non_sequences=self.trainable_weights + self.get_constants(),
                                 truncate_gradient=self.truncate_gradient
                                 )
         outputs = [x.dimshuffle(1, 0, 2) if self.return_sequences else x[-1] for x in outputs]

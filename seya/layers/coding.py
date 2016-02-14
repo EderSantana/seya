@@ -75,7 +75,7 @@ class SparseCoding(Layer):
         self.input = T.matrix()
 
         self.W = self.init((self.output_dim, self.input_dim))
-        self.params = [self.W, ]
+        self.trainable_weights = [self.W, ]
 
         self.regularizers = []
         if W_regularizer:
@@ -157,7 +157,7 @@ class VarianceCoding(Layer):
         self.input = T.matrix()
 
         self.W = self.init((self.output_dim, self.input_dim))
-        self.params = [self.W]
+        self.trainable_weights = [self.W]
 
         self.regularizers = []
         if W_regularizer:
@@ -195,7 +195,7 @@ class VarianceCoding(Layer):
             self._step,
             sequences=[],
             outputs_info=[initial_states, ]*3 + [None, None],
-            non_sequences=[inputs, prior] + self.params,
+            non_sequences=[inputs, prior] + self.trainable_weights,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
         return outputs[-1][-1]
@@ -258,7 +258,7 @@ class Sparse2L(Layer):
             self.V = sharedX(np.random.uniform(low=0, high=.1,
                                                size=(self.causes_dim,
                                                      self.output_dim)))
-        self.params = [self.W, self.V]
+        self.trainable_weights = [self.W, self.V]
 
         self.regularizers = []
         if W_regularizer:
@@ -329,7 +329,7 @@ class Sparse2L(Layer):
             self._step,
             sequences=[],
             outputs_info=[x_init, u_init, None, None],
-            non_sequences=[inputs, x_prior, u_prior] + self.params,
+            non_sequences=[inputs, x_prior, u_prior] + self.trainable_weights,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
@@ -396,7 +396,7 @@ class ConvSparseCoding(Layer):
         self.W_shape = (nb_filter, stack_size, nb_row, nb_col)
         self.W = self.init(self.W_shape)
 
-        self.params = [self.W]
+        self.trainable_weights = [self.W]
 
         self.regularizers = []
         if W_regularizer:
@@ -442,7 +442,7 @@ class ConvSparseCoding(Layer):
             self._step,
             sequences=[],
             outputs_info=[initial_states, None],
-            non_sequences=[inputs, prior] + self.params,
+            non_sequences=[inputs, prior] + self.trainable_weights,
             n_steps=self.n_steps,
             truncate_gradient=self.truncate_gradient)
 
@@ -490,7 +490,7 @@ class ConvSparse2L(Layer):
         self.W_shape = (nb_filter, stack_size, nb_row, nb_col)
         self.W = self.init(self.W_shape)
 
-        self.params = [self.W]
+        self.trainable_weights = [self.W]
 
         self.regularizers = []
         if W_regularizer:
@@ -562,7 +562,7 @@ class TSC(Recurrent):
         s2l.return_mode = return_mode
         self.s2l = s2l
         self.A = self.inner_init((s2l.output_dim, s2l.output_dim))
-        self.params = s2l.params  # + [self.A, ]
+        self.trainable_weights = s2l.trainable_weights  # + [self.A, ]
         self.input = T.tensor3()
 
         kwargs['input_shape'] = (None, None, self.s2l.input_dim)
@@ -590,7 +590,7 @@ class TSC(Recurrent):
             self._step,
             sequences=X,
             outputs_info=self.s2l.get_initial_states(X[0])+(None, None),
-            non_sequences=self.params,
+            non_sequences=self.trainable_weights,
             truncate_gradient=self.truncate_gradient)
         outputs = [o.dimshuffle(1, 0, 2) for o in outputs]
         return outputs
@@ -613,7 +613,7 @@ class TSC2L(Recurrent):
         self.layer2 = layer2
         self.A1 = self.inner_init((layer1.output_dim, layer1.output_dim))
         self.A2 = self.inner_init((layer2.output_dim, layer2.output_dim))
-        self.params = layer1.params + layer2.params  # + [self.A1, self.A2]
+        self.trainable_weights = layer1.trainable_weights + layer2.trainable_weights  # + [self.A1, self.A2]
         self.input = T.tensor3()
 
         kwargs['input_shape'] = self.layer1.input_shape
@@ -648,7 +648,7 @@ class TSC2L(Recurrent):
             sequences=X,
             outputs_info=self.layer1.get_initial_states(X[0])+(None, None) +
             self.layer2.get_initial_states(X[0])+(None, None),
-            non_sequences=self.params,
+            non_sequences=self.trainable_weights,
             truncate_gradient=self.truncate_gradient)
         outputs = [o.dimshuffle(1, 0, 2) for o in outputs]
         return outputs
@@ -682,7 +682,7 @@ class TemporalSparseCoding(Recurrent):
             self.A = self.init(self.W.get_value().shape)
             self.input = T.TensorType(floatX, (False,)*5)()
 
-        self.params = prototype.params  # + [self.A, ]
+        self.trainable_weights = prototype.trainable_weights  # + [self.A, ]
         self.truncate_gradient = truncate_gradient
         self.return_mode = return_mode
 
@@ -720,7 +720,7 @@ class TemporalSparseCoding(Recurrent):
             self._step,
             sequences=[inputs],
             outputs_info=initial_states + (None, None),
-            non_sequences=self.params + self.tnet.params,
+            non_sequences=self.trainable_weights + self.tnet.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'reconstruction':

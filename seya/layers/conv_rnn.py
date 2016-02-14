@@ -78,8 +78,8 @@ class ConvGRU(Recurrent):
 
         self.max_pool = MaxPooling2D(pool_size=self.subsample)
 
-        self.params = self.conv_h.params + self.conv_z.params + self.conv_r.params + \
-            self.conv_x_h.params + self.conv_x_z.params + self.conv_x_r.params
+        self.trainable_weights = self.conv_h.trainable_weights + self.conv_z.trainable_weights + self.conv_r.trainable_weights + \
+            self.conv_x_h.trainable_weights + self.conv_x_z.trainable_weights + self.conv_x_r.trainable_weights
 
         if self.initial_weights is not None:
             self.set_weights(self.initial_weights)
@@ -163,7 +163,7 @@ class TimeDistributedModel(MaskedLayer):
         self.input = K.placeholder(shape=(batch_size, input_shape[1],
                                           input_shape[2]))
         self.model.build()
-        self.params = self.model.params
+        self.trainable_weights = self.model.trainable_weights
 
     def _step(self, x_t, *args):
         x_t = K.reshape(x_t, self.reshape_dim)

@@ -44,7 +44,7 @@ class SpatialTransformer(Layer):
         if hasattr(self, 'previous'):
             self.locnet.set_previous(self.previous)
         self.locnet.build()
-        self.params = self.locnet.params
+        self.trainable_weights = self.locnet.trainable_weights
         self.regularizers = self.locnet.regularizers
         self.constraints = self.locnet.constraints
         self.input = self.locnet.input  # This must be T.tensor4()
@@ -227,7 +227,7 @@ class ST2(Layer):
         self.ds = downsample_factor
         self.locnet = localization_net
         self.img_shape = img_shape
-        self.params = localization_net.params
+        self.trainable_weights = localization_net.trainable_weights
         self.regularizers = localization_net.regularizers
         self.constraints = localization_net.constraints
         self.input = localization_net.input  # this should be T.tensor4()

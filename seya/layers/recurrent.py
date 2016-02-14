@@ -45,7 +45,7 @@ class Bidirectional(Recurrent):
         self.backward.input = self.input
         self.forward.build()
         self.backward.build()
-        self.params = self.forward.params + self.backward.params
+        self.trainable_weights = self.forward.trainable_weights + self.backward.trainable_weights
 
     def set_previous(self, layer, connection_map={}):
         assert self.nb_input == layer.nb_output == 1, "Cannot connect layers: input count and output count should be 1."

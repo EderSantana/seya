@@ -90,7 +90,7 @@ class DRAW(Recurrent):
         self.W_sigma = self.enc.init((self.output_dim, self.code_dim))
         self.b_mean = shared_zeros((self.code_dim))
         self.b_sigma = shared_zeros((self.code_dim))
-        self.params = self.enc.params + self.dec.params + [
+        self.trainable_weights = self.enc.trainable_weights + self.dec.trainable_weights + [
             self.L_enc, self.L_dec, self.b_enc, self.b_dec, self.W_patch,
             self.b_patch, self.W_mean, self.W_sigma, self.b_mean, self.b_sigma,
             self.init_canvas, self.init_h_enc, self.init_h_dec]
@@ -98,7 +98,7 @@ class DRAW(Recurrent):
         if self.inner_rnn == 'lstm':
             self.init_cell_enc = shared_zeros((self.output_dim))     # initial values
             self.init_cell_dec = shared_zeros((self.output_dim))     # should be trained
-            self.params = self.params + [self.init_cell_dec, self.init_cell_enc]
+            self.trainable_weights = self.trainable_weights + [self.init_cell_dec, self.init_cell_enc]
 
     def set_previous(self, layer, connection_map={}):
         self.previous = layer
@@ -108,7 +108,7 @@ class DRAW(Recurrent):
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
 
-    def _get_attention_params(self, h, L, b, N):
+    def _get_attention.trainable_weights(self, h, L, b, N):
         p = T.dot(h, L) + b
         gx = self.width * (p[:, 0]+1) / 2.
         gy = self.height * (p[:, 1]+1) / 2.
@@ -205,7 +205,7 @@ class DRAW(Recurrent):
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
         x_hat = x - self.canvas_activation(canvas)
-        gx, gy, sigma2, delta, gamma = self._get_attention_params(
+        gx, gy, sigma2, delta, gamma = self._get_attention.trainable_weights(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
@@ -221,7 +221,7 @@ class DRAW(Recurrent):
         new_h_dec = self._get_rnn_state(self.dec, x_dec_z, x_dec_r, x_dec_h,
                                         h_dec)
 
-        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_params(
+        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention.trainable_weights(
             new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
@@ -232,7 +232,7 @@ class DRAW(Recurrent):
     def _step_lstm(self, eps, canvas, h_enc, cell_enc,
                    h_dec, cell_dec, x, *args):
         x_hat = x - self.canvas_activation(canvas)
-        gx, gy, sigma2, delta, gamma = self._get_attention_params(
+        gx, gy, sigma2, delta, gamma = self._get_attention.trainable_weights(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
@@ -250,7 +250,7 @@ class DRAW(Recurrent):
         new_h_dec, new_cell_dec = self._get_rnn_state(
             self.dec, x_dec_i, x_dec_f, x_dec_c, x_dec_o, h_dec, cell_dec)
 
-        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_params(
+        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention.trainable_weights(
             new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
@@ -267,7 +267,7 @@ class DRAW(Recurrent):
             outputs, updates = scan(self._step,
                                     sequences=eps,
                                     outputs_info=self._get_initial_states(X) + (None, ),
-                                    non_sequences=[X, ] + self.params,
+                                    non_sequences=[X, ] + self.trainable_weights,
                                     # n_steps=self.n_steps,
                                     truncate_gradient=self.truncate_gradient)
 
@@ -275,7 +275,7 @@ class DRAW(Recurrent):
             outputs, updates = scan(self._step_lstm,
                                     sequences=eps,
                                     outputs_info=self._get_initial_states(X) + (None, ),
-                                    non_sequences=[X, ] + self.params,
+                                    non_sequences=[X, ] + self.trainable_weights,
                                     truncate_gradient=self.truncate_gradient)
 
         kl = outputs[-1].sum(axis=0).mean()

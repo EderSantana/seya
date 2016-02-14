@@ -39,7 +39,7 @@ class FDPCN(Recurrent):
         self.Cb = shared_zeros((self.causes_dim))
         self.CbS = shared_zeros((self.states_dim))
         self.C2S = self.init((self.causes_dim, self.states_dim))
-        self.params = [self.I2S, self.S2S, self.Sb,
+        self.trainable_weights = [self.I2S, self.S2S, self.Sb,
                        self.C2S, self.C2C, self.Cb, self.S2C, self.CbS]
 
         if weights is not None:
@@ -126,7 +126,7 @@ class Tensor(Recurrent):
         self.C = self.init((output_dim, output_dim))
         self.b = shared_zeros((self.output_dim))
 
-        self.params = [self.W, self.C, self.b] + hid2output.params
+        self.trainable_weights = [self.W, self.C, self.b] + hid2output.trainable_weights
 
         self.regularizers = []
         self.W_regularizer = regularizers.get(W_regularizer)
@@ -173,7 +173,7 @@ class Tensor(Recurrent):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.C, self.b] + self.hid2output.params,
+            non_sequences=[self.C, self.b] + self.hid2output.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
@@ -206,7 +206,7 @@ class Tensor2(Tensor):
     '''
     def __init__(self, *args, **kwargs):
         super(Tensor2, self).__init__(*args, **kwargs)
-        del self.params[1]
+        del self.trainable_weights[1]
 
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).sum(axis=1)  # shape: batch/output_dim
@@ -223,7 +223,7 @@ class Tensor2(Tensor):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.b] + self.hid2output.params,
+            non_sequences=[self.b] + self.hid2output.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
@@ -259,9 +259,9 @@ class ProdTensor(Tensor):
         self.W = self.init((self.input_dim, self.output_dim))
         self.C = self.init((self.causes_dim, self.output_dim))
         self.b0 = shared_zeros((self.output_dim))
-        self.params[0] = self.W
-        self.params[1] = self.C
-        self.params = self.params + [self.b0, ]
+        self.trainable_weights[0] = self.W
+        self.trainable_weights[1] = self.C
+        self.trainable_weights = self.trainable_weights + [self.b0, ]
 
     def _step(self, Wx_t, s_tm1, u_tm1, C, b0, b1, *args):
         Cu = self.activation(T.dot(u_tm1, C) + b0)
@@ -278,7 +278,7 @@ class ProdTensor(Tensor):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.C, self.b0, self.b] + self.hid2output.params,
+            non_sequences=[self.C, self.b0, self.b] + self.hid2output.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
@@ -311,7 +311,7 @@ class ProdExp(Tensor):
     '''
     def __init__(self, *args, **kwargs):
         super(ProdExp, self).__init__(*args, **kwargs)
-        del self.params[1]
+        del self.trainable_weights[1]
 
     def _step(self, Wx_t, s_tm1, u_tm1, b, *args):
         uWx = (u_tm1[:, :, None] * Wx_t).prod(axis=1)  # shape: batch/output_dim
@@ -328,7 +328,7 @@ class ProdExp(Tensor):
             self._step,
             sequences=[Wx],
             outputs_info=[s_init, u_init],
-            non_sequences=[self.b] + self.hid2output.params,
+            non_sequences=[self.b] + self.hid2output.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':
@@ -389,7 +389,7 @@ class GAE(Recurrent):
         self.bo = shared_zeros((self.output_dim))
         self.bc = shared_zeros((self.causes_dim))
 
-        self.params = [self.V, self.U, self.W]
+        self.trainable_weights = [self.V, self.U, self.W]
 
         self.regularizers = []
         self.W_regularizer = regularizers.get(W_regularizer)
@@ -438,7 +438,7 @@ class GAE(Recurrent):
             self._step,
             sequences=[X, Vx],
             outputs_info=[x_init, s_init, u_init],
-            non_sequences=self.params,
+            non_sequences=self.trainable_weights,
             truncate_gradient=self.truncate_gradient)
 
         if self.return_mode == 'both':

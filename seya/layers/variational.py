@@ -50,7 +50,7 @@ class VariationalDense(Layer):
         self.W_logsigma = self.init((input_dim, self.output_dim))
         self.b_logsigma = K.zeros((self.output_dim,))
 
-        self.params = [self.W_mean, self.b_mean, self.W_logsigma,
+        self.trainable_weights = [self.W_mean, self.b_mean, self.W_logsigma,
                        self.b_logsigma]
 
         self.regularizers = []

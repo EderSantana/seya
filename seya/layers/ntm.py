@@ -154,7 +154,7 @@ class NeuralTuringMachine(Recurrent):
 
         self.C = _circulant(self.n_slots, self.shift_range)
 
-        self.params = self.rnn.params + [
+        self.trainable_weights = self.rnn.trainable_weights + [
             self.W_e, self.b_e,
             self.W_a, self.b_a,
             self.W_k_read, self.b_k_read,
@@ -168,7 +168,7 @@ class NeuralTuringMachine(Recurrent):
 
         if self.inner_rnn == 'lstm':
             self.init_c = K.zeros((self.output_dim))
-            self.params = self.params + [self.init_c, ]
+            self.trainable_weights = self.trainable_weights + [self.init_c, ]
 
     def _read(self, w, M):
         return (w[:, :, None]*M).sum(axis=1)
