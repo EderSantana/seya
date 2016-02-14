@@ -2,6 +2,16 @@ import numpy as np
 import theano
 import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams
+from keras import backend as K
+
+
+def batched_dot(input, W_list, b_list, sizes_list):
+    X = input
+    W = K.concatenate(W_list, axis=-1)
+    b = K.concatenate(b_list, axis=-1)
+    Y = K.dot(X, W) + b
+    sl = [0, ] + list(np.cumsum(sizes_list))
+    return [Y[:, sl[i]:sl[i+1]] for i in range(len(sizes_list))]
 
 
 def batchwise_function(func, X, batch_size=100):

@@ -2,7 +2,7 @@ import theano.tensor as T
 from theano import scan
 
 from keras.layers.recurrent import GRU, Recurrent, LSTM
-from keras.utils.theano_utils import shared_zeros, alloc_zeros_matrix
+from keras.utils.theano_utils import shared_zeros  # , alloc_zeros_matrix
 
 from ..utils import theano_rng
 from ..regularizers import SimpleCost
@@ -62,7 +62,7 @@ class DRAW(Recurrent):
                 init=self.init,
                 inner_init=self.inner_init)
 
-        elif inner_rnn == 'lstm':
+        elif self.inner_rnn == 'lstm':
             self.enc = LSTM(
                 input_length=self.n_steps,
                 input_dim=self._input_shape[0]*2*self.N_enc**2 + self.output_dim,
