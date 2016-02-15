@@ -24,8 +24,8 @@ class WinnerTakeAll2D(Layer):
 
 
 class Lambda(MaskedLayer):
-    def __init__(self, func, output_shape, ndim=2):
-        super(Lambda, self).__init__()
+    def __init__(self, func, output_shape, ndim=2, **kwargs):
+        super(Lambda, self).__init__(**kwargs)
         self.input = K.placeholder(ndim=ndim)
         self.func = func
         self._output_shape = output_shape
@@ -43,8 +43,8 @@ class Pass(MaskedLayer):
     ''' Do literally nothing
         It can the first layer
     '''
-    def __init__(self, ndim=2):
-        super(Pass, self).__init__()
+    def __init__(self, ndim=2, **kwargs):
+        super(Pass, self).__init__(**kwargs)
         self.input = K.placeholder(ndim=ndim)
 
     def get_output(self, train=False):
@@ -59,8 +59,8 @@ class GaussianProd(MaskedLayer):
         The way they have this at Keras is not the way we need for
         Variational AutoEncoders.
     '''
-    def __init__(self, avg=0., std=1.):
-        super(GaussianProd, self).__init__()
+    def __init__(self, avg=0., std=1., **kwargs):
+        super(GaussianProd, self).__init__(**kwargs)
         self.std = std
         self.avg = avg
         self.srng = RandomStreams(seed=np.random.randint(10e6))
