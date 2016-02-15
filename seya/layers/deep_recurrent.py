@@ -1,9 +1,11 @@
+import numpy as np
+
 from keras.layers.core import Dense
 from keras.layers.recurrent import Recurrent, LSTM
 from keras import initializations, activations
 from keras import backend as K
 
-from theano.printing import Print
+# from theano.printing import Print
 
 
 class DeepLSTM(Recurrent):
@@ -19,13 +21,14 @@ class DeepLSTM(Recurrent):
         readout: int, if we should a final Dense layer on top or not. readout is
         this Dense's output_dim
     '''
-    def __init__(self, output_dim, depth=1, readout=False,
+    def __init__(self, output_dim, depth=1, readout=False, dropout=.5,
                  init='glorot_uniform', inner_init='orthogonal',
                  forget_bias_init='one', activation='tanh',
                  inner_activation='hard_sigmoid', **kwargs):
         self.output_dim = output_dim
         self.depth = depth
         self.readout = readout
+        self.dropout = dropout
         self.init = initializations.get(init)
         self.inner_init = initializations.get(inner_init)
         self.forget_bias_init = initializations.get(forget_bias_init)
@@ -86,37 +89,43 @@ class DeepLSTM(Recurrent):
     def step(self, x, states):
         if self.readout:
             assert len(states) == 2*self.depth+1
+            states = states[:-1]
         else:
             assert len(states) == 2*self.depth
 
         h = []
-        P = Print('[debug] X value: ', attrs=("shape",))
+        # P = Print('[debug] X value: ', attrs=("shape",))
         for i, (h_tm1, c_tm1) in enumerate(zip(states[:-1:2], states[1::2])):
-            x = P(x)
+            # x = P(x)
             x, new_states = self.lstms[i].step(x, [h_tm1, c_tm1])
             h.extend(new_states)
+            # x = K.dropout(x, self.dropout)  # no dropout on the first layer inputs
 
         if self.readout:
-            h += self.readout_layer(h[-2])
+            h += [self.readout_layer(h[-2])]
 
         return K.concatenate(h, axis=-1), h
 
-    def dream(self, x, states):
+    def dream(self, length=140):
         def _dream_step(x, states):
+            # input + states
             assert len(states) == 2*self.depth + 1
+            x = states[-1]
+            states = states[:-1]
 
             h = []
-            x = states[0]
             for i, (h_tm1, c_tm1) in enumerate(zip(states[1:-1], states[2:])):
                 x, new_states = self.lstms[i].step(x, [h_tm1, c_tm1])
                 h.extend(new_states)
 
             if self.readout:
-                h[-2] = self.readout_layer(h[-2])
+                h += [self.readout_layer(h[-2])]
+                final = h[-1]
+            else:
+                h += [h[-2]]
+                final = h[-2]
 
-            h = [h[-2], ] + h
-
-            return h[0], h
+            return final, h
 
         # input shape: (nb_samples, time (padded with zeros), input_dim)
         # Only the very first time point of the input is used, the others only
@@ -136,13 +145,21 @@ class DeepLSTM(Recurrent):
                                 'the first layer has ' +
                                 'an "input_shape" or "batch_input_shape" ' +
                                 'argument, including the time axis.')
-        if self.stateful:
-            initial_states = self.states
-        else:
-            initial_states = self.get_initial_states(X)
-        initial_states = [X[:, 0]] + initial_states
+        # if self.stateful:
+        #     initial_states = self.states
+        # else:
+        #     initial_states = self.get_initial_states(X)
 
-        last_output, outputs, states = K.rnn(self._dream_step, X,
+        s = self.get_output(train=False)[:, -1]
+        idx = [0, ] + list(np.cumsum([self.output_dim]*2*self.depth +
+                                     [self.readout, ]))
+        initial_states = [s[:, idx[i]:idx[i+1]] for i in range(len(idx)-1)]
+
+        # if self.readout:
+        #     initial_states.pop(-1)
+        # initial_states.append(X[:, 0])
+
+        last_output, outputs, states = K.rnn(_dream_step, K.zeros((1, length, 1)),
                                              initial_states,
                                              go_backwards=self.go_backwards,
                                              mask=mask)
@@ -157,6 +174,7 @@ class DeepLSTM(Recurrent):
         config = {"output_dim": self.output_dim,
                   "depth": self.depth,
                   "readout": self.readout,
+                  "dropout": self.dropout,
                   "init": self.init.__name__,
                   "inner_init": self.inner_init.__name__,
                   "forget_bias_init": self.forget_bias_init.__name__,
