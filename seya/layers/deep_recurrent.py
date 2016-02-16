@@ -111,10 +111,12 @@ class DeepLSTM(Recurrent):
             # input + states
             assert len(states) == 2*self.depth + 1
             x = states[-1]
+            x = K.switch(K.equal(x, K.max(x, axis=-1,
+                                          keepdims=True)), 1., 0.)
             states = states[:-1]
 
             h = []
-            for i, (h_tm1, c_tm1) in enumerate(zip(states[1:-1], states[2:])):
+            for i, (h_tm1, c_tm1) in enumerate(zip(states[:-1:2], states[1::2])):
                 x, new_states = self.lstms[i].step(x, [h_tm1, c_tm1])
                 h.extend(new_states)
 
