@@ -1,5 +1,7 @@
+import numpy as np
 from keras import backend as K
 from keras.layers.core import Layer, MaskedLayer
+from theano import tensor as T, scan
 
 
 class GlobalPooling2D(Layer):
@@ -65,9 +67,63 @@ class WinnerTakeAll2D(Layer):
     """Spatial Winner-Take-All
     ref: Winner-Take-All Autoencoders by  Alireza Makhzani, Brendan Frey
 
+    Parameters:
+    -----------
+    spatial: int, controls spatial sparsity, defines maximum number of non zeros
+        in a spatial map
+    lifetime, int, controls lifetime sparsity, defines maximum number of non
+        zeros in a dimension throughout the batches
+    n_largest: int, global sparsity, defines maximum number of non zeros in the
+        output tensor.
+    previous_mode: bool, flag to use legacy behavior of this layer
+
+    NOTE:
+    =====
+    This is a Theano only layer
+
     """
-    def __init__(self, **kwargs):
+    def __init__(self, n_largest=np.finfo(np.float32).min,
+                 spatial=5, lifetime=1, previous_mode=True, **kwargs):
+        if K._BACKEND == "tensorflow":
+            raise ValueError("This is a Theano-only layer")
         super(WinnerTakeAll2D, self).__init__(**kwargs)
+        self.spatial = spatial
+        self.lifetime = lifetime
+        self.previous_mode = previous_mode
+
+    def largest(self, c, n=1):
+        s = T.sort(c.flatten())
+        nl = s[-n]
+        c = T.switch(T.ge(c, nl), c, 0.)
+        return c
+
+    def wta_lifetime(self, c, n=1):
+        flag = False
+        if c.ndim > 2:
+            flag = True
+            shape = c.shape
+            c = c.reshape((c.shape[0], -1))
+        sort = T.sort(c, axis=-1)
+
+        def step(cc, s):
+            win = s[-n]
+            cc = T.switch(T.ge(cc, win), cc, 0)
+            return cc
+        c, _ = scan(step, sequences=[c, sort], outputs_info=None)
+        if flag:
+            c = c.reshape(shape)
+        return c
+
+    def wta_spatial(self, c, n=1):
+        flag = False
+        if c.ndim > 2:
+            flag = True
+            shape = c.shape
+            c = c.reshape((c.shape[0], -1))
+        c = self.lifetime(c.T, n=n).T
+        if flag:
+            c = c.reshape(shape)
+        return c
 
     def winner_take_all(self, X):
         M = K.max(X, axis=(2, 3), keepdims=True)
@@ -76,4 +132,10 @@ class WinnerTakeAll2D(Layer):
 
     def get_output(self, train=False):
         X = self.get_input(train)
-        return self.winner_take_all(X)
+        if self.previous_mode:
+            return self.winner_take_all(X)
+        else:
+            Y = self.n_largest(X, self.n)
+            Y = self.lifetime(Y, self.spatial)
+            Y = self.spatial(Y)
+            return Y
