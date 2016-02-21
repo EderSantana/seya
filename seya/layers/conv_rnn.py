@@ -10,7 +10,7 @@ from keras import initializations
 from keras import activations
 from keras import backend as K
 
-from seya.utils import apply_layer, apply_model
+from seya.utils import apply_layer
 
 
 class ConvGRU(Recurrent):
@@ -167,7 +167,8 @@ class TimeDistributedModel(MaskedLayer):
 
     def _step(self, x_t, *args):
         x_t = K.reshape(x_t, self.reshape_dim)
-        return apply_model(self.model, x_t)
+        x_t = self.model(x_t)
+        return K.batch_flatten(x_t)
 
     def get_output(self, train=False):
         X = self.get_input(train)

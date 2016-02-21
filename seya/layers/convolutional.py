@@ -83,15 +83,16 @@ class WinnerTakeAll2D(Layer):
 
     """
     def __init__(self, n_largest=np.finfo(np.float32).min,
-                 spatial=5, lifetime=1, previous_mode=True, **kwargs):
+                 spatial=5, lifetime=5, previous_mode=True, **kwargs):
         if K._BACKEND == "tensorflow":
             raise ValueError("This is a Theano-only layer")
         super(WinnerTakeAll2D, self).__init__(**kwargs)
+        self.n_largest
         self.spatial = spatial
         self.lifetime = lifetime
         self.previous_mode = previous_mode
 
-    def largest(self, c, n=1):
+    def wta_largest(self, c, n=1):
         s = T.sort(c.flatten())
         nl = s[-n]
         c = T.switch(T.ge(c, nl), c, 0.)
@@ -120,7 +121,7 @@ class WinnerTakeAll2D(Layer):
             flag = True
             shape = c.shape
             c = c.reshape((c.shape[0], -1))
-        c = self.lifetime(c.T, n=n).T
+        c = self.wta_lifetime(c.T, n=n).T
         if flag:
             c = c.reshape(shape)
         return c
@@ -135,7 +136,7 @@ class WinnerTakeAll2D(Layer):
         if self.previous_mode:
             return self.winner_take_all(X)
         else:
-            Y = self.n_largest(X, self.n)
-            Y = self.lifetime(Y, self.spatial)
-            Y = self.spatial(Y)
+            Y = self.wta_n_largest(X, self.n_largest)
+            Y = self.wta_lifetime(Y, self.wta_spatial)
+            Y = self.wta_spatial(Y, self.wta_lifetime)
             return Y
