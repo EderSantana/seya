@@ -7,6 +7,7 @@ import unittest
 import numpy as np
 
 from keras.models import Sequential
+from keras.layers.core import TimeDistributedDense
 from keras.layers.convolutional import Convolution2D
 from seya.layers.conv_rnn import ConvGRU, TimeDistributedModel
 
@@ -23,11 +24,12 @@ class TestConvGRU(unittest.TestCase):
                         return_sequences=True)
         model = Sequential()
         model.add(layer)
+        model.add(TimeDistributedDense(10))
         model.compile('sgd', 'mse')
 
         x = np.random.randn(nb_samples, timesteps, input_flat)
         y = model.predict(x)
-        assert y.shape == (nb_samples, timesteps, input_flat)
+        assert y.shape == (nb_samples, timesteps, 10)
 
     def test_time_distributed(self):
         """Just check that the TimeDistributedModel layer can compile and run"""
@@ -43,11 +45,12 @@ class TestConvGRU(unittest.TestCase):
                                                   input_flat))
         model = Sequential()
         model.add(layer)
+        model.add(TimeDistributedDense(10))
         model.compile('sgd', 'mse')
 
         x = np.random.randn(nb_samples, timesteps, input_flat)
         y = model.predict(x)
-        assert y.shape == (nb_samples, timesteps, input_flat)
+        assert y.shape == (nb_samples, timesteps, 10)
 
 
 if __name__ == '__main__':

@@ -170,20 +170,20 @@ class TimeDistributedModel(MaskedLayer):
         x_t = self.model(x_t)
         return K.batch_flatten(x_t)
 
+    # def get_output(self, train=False):
+    #     X = self.get_input(train)
+
+    #     def step(x, states):
+    #         x = K.reshape(x, (-1, ) + self.model.input_shape[1:])
+    #         output = self.model(x, train=train)
+    #         return output, []
+
+    #     last_output, outputs, states = K.rnn(step, X,
+    #                                          initial_states=[],
+    #                                          mask=None)
+    #     return outputs
+
     def get_output(self, train=False):
-        X = self.get_input(train)
-
-        def step(x, states):
-            x = K.reshape(x, (-1, ) + self.model.input_shape[1:])
-            output = self.model(x, train=train)
-            return output, []
-
-        last_output, outputs, states = K.rnn(step, X,
-                                             initial_states=[],
-                                             mask=None)
-        return outputs
-
-    def get_output2(self, train=False):
         X = self.get_input(train)
         if K._BACKEND == 'theano':
             batch_size = K.shape(X)[0]
