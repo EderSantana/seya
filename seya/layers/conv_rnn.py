@@ -14,10 +14,11 @@ from seya.utils import apply_layer
 
 
 class ConvGRU(Recurrent):
-    def __init__(self, filter_dim, reshape_dim, subsample=(1, 1),
+    def __init__(self, filter_dim, reshape_dim, batch_size=None, subsample=(1, 1),
                  init='glorot_uniform', inner_init='glorot_uniform',
                  activation='sigmoid', inner_activation='hard_sigmoid',
                  weights=None, **kwargs):
+        self.batch_size = batch_size
         self.border_mode = 'same'
         self.filter_dim = filter_dim
         self.reshape_dim = reshape_dim
@@ -37,16 +38,14 @@ class ConvGRU(Recurrent):
         if K._BACKEND == 'theano':
             batch_size = X.shape[0]
         else:
-            batch_size = self.input_shape[0]
-            assert batch_size
+            batch_size = self.batch_size
         return batch_size
 
     def build(self):
         if K._BACKEND == 'theano':
             batch_size = None
         else:
-            batch_size = self.input_shape[0]
-            assert batch_size
+            batch_size = self.batch_size
         input_dim = self.input_shape
         bm = self.border_mode
         reshape_dim = self.reshape_dim
@@ -141,24 +140,23 @@ class ConvGRU(Recurrent):
 
 
 class TimeDistributedModel(MaskedLayer):
-    def __init__(self, model, **kwargs):
+    def __init__(self, model, batch_size=None, **kwargs):
         self.model = model
+        self.batch_size = batch_size
         super(TimeDistributedModel, self).__init__(**kwargs)
 
     def _get_batch_size(self, X):
         if K._BACKEND == 'theano':
             batch_size = X.shape[0]
         else:
-            batch_size = self.input_shape[0]
-            assert batch_size
+            batch_size = self.batch_size
         return batch_size
 
     def build(self):
         if K._BACKEND == 'theano':
             batch_size = None
         else:
-            batch_size = self.input_shape[0]
-            assert batch_size
+            batch_size = self.batch_size
         input_shape = self.input_shape
         self.input = K.placeholder(shape=(batch_size, input_shape[1],
                                           input_shape[2]))
@@ -185,16 +183,16 @@ class TimeDistributedModel(MaskedLayer):
 
     def get_output(self, train=False):
         X = self.get_input(train)
+        batch_size = self._get_batch_size(X)
         if K._BACKEND == 'theano':
-            batch_size = K.shape(X)[0]
             time_len = K.shape(X)[1]
         else:
-            batch_size, time_len = self.input_shape[:2]
+            time_len = self.input_shape[2]
         reshape_dim = (batch_size*time_len, ) + self.model.input_shape[1:]
         out_dim = np.prod(self.model.output_shape[1:])
-        X = X.flatten(ndim=2)  # (sample*time, dim)
-        X = K.reshape(X, reshape_dim)  # (sample*time, dim1, dim2, ...)
-        Y = self.model(X, train=train)
+        Inp = K.batch_flatten(X)  # (sample*time, dim)
+        Inp = K.reshape(Inp, reshape_dim)  # (sample*time, dim1, dim2, ...)
+        Y = self.model(Inp, train=train)
         Y = K.reshape(Y, (batch_size, time_len, out_dim))  # (sample, time, dim_out)
         return Y
 

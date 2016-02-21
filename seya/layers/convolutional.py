@@ -1,4 +1,3 @@
-import numpy as np
 from keras import backend as K
 from keras.layers.core import Layer, MaskedLayer
 from theano import tensor as T, scan
@@ -82,12 +81,12 @@ class WinnerTakeAll2D(Layer):
     This is a Theano only layer
 
     """
-    def __init__(self, n_largest=np.finfo(np.float32).min,
+    def __init__(self, n_largest=None,
                  spatial=5, lifetime=5, previous_mode=True, **kwargs):
-        if K._BACKEND == "tensorflow":
+        if K._BACKEND == "tensorflow" and not previous_mode:
             raise ValueError("This is a Theano-only layer")
         super(WinnerTakeAll2D, self).__init__(**kwargs)
-        self.n_largest
+        self.n_largest = n_largest
         self.spatial = spatial
         self.lifetime = lifetime
         self.previous_mode = previous_mode
@@ -136,7 +135,11 @@ class WinnerTakeAll2D(Layer):
         if self.previous_mode:
             return self.winner_take_all(X)
         else:
-            Y = self.wta_n_largest(X, self.n_largest)
-            Y = self.wta_lifetime(Y, self.wta_spatial)
-            Y = self.wta_spatial(Y, self.wta_lifetime)
+            Y = X
+            if self.n_largest:
+                Y = self.wta_largest(Y, self.n_largest)
+            if self.wta_spatial:
+                Y = self.wta_lifetime(Y, self.spatial)
+            if self.wta_lifetime:
+                Y = self.wta_spatial(Y, self.lifetime)
             return Y
