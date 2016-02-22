@@ -33,10 +33,10 @@ class GaussianKL(Regularizer):
     def __call__(self, loss):
         # See Variational Auto-Encoding Bayes by Kingma and Welling.
         mean, logsigma = self.mean, self.logsigma
-        kl = (self.prior_logsigma - logsigma
-              + 0.5 * (K.exp(2 * logsigma) + (mean - self.prior_mean) ** 2)
-              / K.exp(2 * self.prior_logsigma))
-        loss += kl.mean() * self.regularizer_scale
+        kl = (self.prior_logsigma - logsigma +
+              0.5 * (-1 + K.exp(2 * logsigma) + (mean - self.prior_mean) ** 2) /
+              K.exp(2 * self.prior_logsigma))
+        loss += K.mean(kl) * self.regularizer_scale
         return loss
 
     def get_config(self):
