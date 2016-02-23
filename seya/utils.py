@@ -15,8 +15,8 @@ def batched_dot(input, W_list, b_list, sizes_list):
 
 
 def batchwise_function(func, X, batch_size=100):
-    Y = [func(X[i*batch_size:(i+1)*batch_size]) for i in range(0,
-                                                               X.shape[0]//batch_size)]
+    Y = [func([X[i*batch_size:(i+1)*batch_size]]) for i in range(0,
+                                                                 X.shape[0]//batch_size)]
     return np.concatenate(Y, axis=0)
 
 
