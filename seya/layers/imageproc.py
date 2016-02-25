@@ -12,7 +12,8 @@ from keras.layers.core import Layer
 class NormLayer(Layer):
     """ Normalization layer """
 
-    def __init__(self, method="lcn", kernel_size=5, threshold=1e-4,
+    def __init__(self, method="lcn", kernel_size=9, threshold=1e-4,
+                 nb_channels=3,
                  use_divisor=True, **kwargs):
         """
         method: "lcn", "gcn", "mean"
@@ -33,15 +34,20 @@ class NormLayer(Layer):
         self.kernel_size = kernel_size
         self.threshold = threshold
         self.use_divisor = use_divisor
+        self.nb_channels = nb_channels
         self.input = K.placeholder(ndim=4)
 
     def get_output(self, train=False):
         X = self.get_input()
+        out = []
         if self.method == "lcn":
-            out = self.lecun_lcn(X, self.kernel_size, self.threshold,
-                                 self.use_divisor)
+            for i in range(self.nb_channels):
+                XX = X[:, i:i+1, :, :]
+                out += [self.lecun_lcn(XX, self.kernel_size, self.threshold,
+                                       self.use_divisor)]
+            out = K.concatenate(out, axis=1)
         elif self.method == "gcn":
-            out = self.global_contrast_normalize(X, self.kernel_size)
+            out = self.global_contrast_normalize(X)
         elif self.method == "mean":
             out = self.local_mean_subtraction(X, self.kernel_size)
         else:
@@ -55,7 +61,8 @@ class NormLayer(Layer):
         """
 
         filter_shape = (1, 1, kernel_size, kernel_size)
-        filters = self.gaussian_filter(kernel_size).reshape(filter_shape)
+        filters = self.gaussian_filter(
+            kernel_size).reshape(filter_shape)
         # filters = shared(_asarray(filters, dtype=floatX), borrow=True)
         filters = K.variable(filters)
 
@@ -67,8 +74,8 @@ class NormLayer(Layer):
 
         if use_divisor:
             # Scale down norm of kernel_sizexkernel_size patch
-            sum_sqr_XX = K.conv2d(K.sqr(K.abs_(new_X)), filters,
-                                  filter_shape=filter_shape, border_mode='full')
+            sum_sqr_XX = K.conv2d(K.pow(K.abs(new_X), 2), filters,
+                                  filter_shape=filter_shape, border_mode='same')
 
             denom = T.sqrt(sum_sqr_XX)
             per_img_mean = denom.mean(axis=[2, 3])
@@ -90,7 +97,7 @@ class NormLayer(Layer):
         return X - mean
 
     def global_contrast_normalize(self, X, scale=1., subtract_mean=True,
-                                  use_std=False, sqrt_bias=0., min_divisor=1e-8):
+                                  use_std=False, sqrt_bias=0., min_divisor=1e-6):
 
         ndim = X.ndim
         if ndim not in [3, 4]:
@@ -115,9 +122,9 @@ class NormLayer(Layer):
         T.set_subtensor(normalizers[(normalizers < min_divisor).nonzero()], 1.)
 
         if ndim == 3:
-            new_X /= normalizers[:, :, None]
+            new_X /= (normalizers[:, :, None] + 1e-6)
         else:
-            new_X /= normalizers[:, :, :, None]
+            new_X /= (normalizers[:, :, :, None] + 1e-6)
 
         return new_X
 
