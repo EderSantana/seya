@@ -1,6 +1,6 @@
 from keras import backend as K
 from keras.layers.core import Layer, MaskedLayer
-from theano import tensor as T, scan
+from theano import tensor as T  # , scan
 
 
 class GlobalPooling2D(Layer):
@@ -98,32 +98,38 @@ class WinnerTakeAll2D(Layer):
         return c
 
     def wta_lifetime(self, c, n=1):
-        flag = False
-        if c.ndim > 2:
-            flag = True
-            shape = c.shape
-            c = c.reshape((c.shape[0], -1))
-        sort = T.sort(c, axis=-1)
+        # flag = False
+        # if c.ndim > 2:
+        #     flag = True
+        #     shape = c.shape
+        #     c = c.reshape((c.shape[0], -1))
+        # sort = T.sort(c, axis=-1)
 
-        def step(cc, s):
-            win = s[-n]
-            cc = T.switch(T.ge(cc, win), cc, 0)
-            return cc
-        c, _ = scan(step, sequences=[c, sort], outputs_info=None)
-        if flag:
-            c = c.reshape(shape)
-        return c
+        # def step(cc, s):
+        #     win = s[-n]
+        #     cc = T.switch(T.ge(cc, win), cc, 0)
+        #     return cc
+        # c, _ = scan(step, sequences=[c, sort], outputs_info=None)
+        # if flag:
+        #     c = c.reshape(shape)
+        # return c
+        s = T.sort(c, axis=0)[-n].dimshuffle('x', 0, 1, 2)
+        r = K.switch(T.ge(c, s), c, 0.)
+        return r
 
     def wta_spatial(self, c, n=1):
-        flag = False
-        if c.ndim > 2:
-            flag = True
-            shape = c.shape
-            c = c.reshape((c.shape[0], -1))
-        c = self.wta_lifetime(c.T, n=n).T
-        if flag:
-            c = c.reshape(shape)
-        return c
+        # flag = False
+        # if c.ndim > 2:
+        #     flag = True
+        #     shape = c.shape
+        #     c = c.reshape((c.shape[0], -1))
+        # c = self.wta_lifetime(c.T, n=n).T
+        # if flag:
+        #     c = c.reshape(shape)
+        c = c.reshape((c.shape[0], c.shape[1], -1))
+        s = T.sort(c, axis=2)[:, :, -n].dimshuffle(0, 1, 'x', 'x')
+        r = K.switch(T.ge(c, s), c, 0.)
+        return r
 
     def winner_take_all(self, X):
         M = K.max(X, axis=(2, 3), keepdims=True)
@@ -132,7 +138,9 @@ class WinnerTakeAll2D(Layer):
 
     def get_output(self, train=False):
         X = self.get_input(train)
-        if self.previous_mode:
+        if not train:
+            return X
+        elif self.previous_mode:
             return self.winner_take_all(X)
         else:
             Y = X
