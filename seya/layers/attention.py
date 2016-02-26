@@ -281,3 +281,90 @@ class ST2(Layer):
                                        new_col)).dimshuffle(0, 'x', 1, 2))
         output = T.concatenate(output, axis=1)
         return output
+
+
+class DifferentiableRAM(Layer):
+    """DifferentiableRAM uses Gaussian attention mechanism from DRAW [1]_
+
+    downsample_fator : float
+        A value of 1 will keep the orignal size of the image.
+        Values larger than 1 will down sample the image. Values below 1 will
+        upsample the image.
+        example image: height= 100, width = 100
+        downsample_factor = 2
+        output image will then be 50, 50 (pleaes, use square images)
+
+    References
+    ----------
+
+    """
+    def __init__(self,
+                 localization_net,
+                 downsample_factor=1,
+                 return_theta=False,
+                 **kwargs):
+        self.downsample_factor = downsample_factor
+        self.locnet = localization_net
+        self.return_theta = return_theta
+        super(DifferentiableRAM, self).__init__(**kwargs)
+
+    def build(self):
+        if hasattr(self, 'previous'):
+            self.locnet.set_previous(self.previous)
+        self.locnet.build()
+        self.trainable_weights = self.locnet.trainable_weights
+        self.regularizers = self.locnet.regularizers
+        self.constraints = self.locnet.constraints
+        self.input = self.locnet.input  # This must be T.tensor4()
+        self.N_points = self.output_shape[-1]
+        self.width = self.input_shape[2]
+        self.height = self.input_shape[2]
+
+    @property
+    def output_shape(self):
+        input_shape = self.input_shape
+        return (None, input_shape[1],
+                int(input_shape[2] // self.downsample_factor),
+                int(input_shape[2] // self.downsample_factor))
+
+    def get_output(self, train=False):
+        X = self.get_input(train)
+        p = self.locnet(X)
+        gx, gy, sigma2, delta, gamma = self._get_attention_params(
+            p, self.N_points)
+        Fx, Fy = self._get_filterbank(
+            gx, gy, sigma2, delta, self.N_points)
+        output = self._read(X, gamma, Fx, Fy)
+        if self.return_theta:
+            return p
+        else:
+            return output
+
+    def _get_attention_params(self, p, N):
+        gx = self.width * (p[:, 0]+1) / 2.
+        gy = self.height * (p[:, 1]+1) / 2.
+        sigma2 = T.exp(p[:, 2])
+        delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1.)
+        gamma = T.exp(p[:, 4])
+        return gx, gy, sigma2, delta, gamma
+
+    def _get_filterbank(self, gx, gy, sigma2, delta, N):
+        small = 1e-4
+        i = T.arange(N).astype("float32")
+        a = T.arange(self.width).astype("float32")
+        b = T.arange(self.height).astype("float32")
+
+        mx = gx[:, None] + delta[:, None] * (i - N/2. - .5)
+        my = gy[:, None] + delta[:, None] * (i - N/2. - .5)
+
+        Fx = T.exp(-(a - mx[:, :, None])**2 / 2. / sigma2[:, None, None])
+        Fx /= (Fx.sum(axis=-1)[:, :, None] + small)
+        Fy = T.exp(-(b - my[:, :, None])**2 / 2. / sigma2[:, None, None])
+        Fy /= (Fy.sum(axis=-1)[:, :, None] + small)
+        return Fx, Fy
+
+    def _read(self, x, gamma, Fx, Fy):
+        Fyx = (Fy[:, None, :, :, None] * x[:, :, None, :, :]).sum(axis=3)
+        FxT = Fx.dimshuffle(0, 2, 1)
+        FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
+        return gamma[:, None, None, None] * FyxFx
