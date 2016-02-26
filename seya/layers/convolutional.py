@@ -136,11 +136,13 @@ class WinnerTakeAll2D(Layer):
         R = K.switch(K.equal(X, M), X, 0.)
         return R
 
-    def get_output(self, train=False):
+    def get_output(self, train=True):
         X = self.get_input(train)
-        if not train:
+        if train is False:
+            print "[FALSE]"
             return X
         elif self.previous_mode:
+            print "[TRUE]"
             return self.winner_take_all(X)
         else:
             Y = X

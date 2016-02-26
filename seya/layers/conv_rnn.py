@@ -10,7 +10,7 @@ from keras import initializations
 from keras import activations
 from keras import backend as K
 
-from seya.utils import apply_layer
+# from seya.utils import apply_layer
 
 
 class ConvRNN(Recurrent):
@@ -125,8 +125,10 @@ class ConvRNN(Recurrent):
         h_tm1 = K.reshape(states[0], hidden_dim)
 
         x_t = K.reshape(x, input_shape)
-        Wx_t = apply_layer(self.conv_x, x_t)
-        h_t = self.activation(Wx_t + apply_layer(self.conv_h, h_tm1))
+        # Wx_t = apply_layer(self.conv_x, x_t)
+        Wx_t = self.conv_x(x_t, train=True)
+        # h_t = self.activation(Wx_t + apply_layer(self.conv_h, h_tm1))
+        h_t = self.activation(Wx_t + self.conv_h(h_tm1, train=True))
         h_t = K.batch_flatten(h_t)
         return h_t, [h_t, ]
 
@@ -221,17 +223,26 @@ class ConvGRU(ConvRNN):
         h_tm1 = K.reshape(states[0], hidden_dim)
 
         x_t = K.reshape(x, input_shape)
-        xz_t = apply_layer(self.conv_x_z, x_t)
-        xr_t = apply_layer(self.conv_x_r, x_t)
-        xh_t = apply_layer(self.conv_x_h, x_t)
+        # xz_t = apply_layer(self.conv_x_z, x_t)
+        # xr_t = apply_layer(self.conv_x_r, x_t)
+        # xh_t = apply_layer(self.conv_x_h, x_t)
+        xz_t = self.conv_x_z(x_t, train=True)
+        xr_t = self.conv_x_r(x_t, train=True)
+        xh_t = self.conv_x_h(x_t, train=True)
 
-        xz_t = apply_layer(self.max_pool, xz_t)
-        xr_t = apply_layer(self.max_pool, xr_t)
-        xh_t = apply_layer(self.max_pool, xh_t)
+        # xz_t = apply_layer(self.max_pool, xz_t)
+        # xr_t = apply_layer(self.max_pool, xr_t)
+        # xh_t = apply_layer(self.max_pool, xh_t)
+        xz_t = self.max_pool(xz_t)
+        xr_t = self.max_pool(xr_t)
+        xh_t = self.max_pool(xh_t)
 
-        z = self.inner_activation(xz_t + apply_layer(self.conv_z, h_tm1))
-        r = self.inner_activation(xr_t + apply_layer(self.conv_r, h_tm1))
-        hh_t = self.activation(xh_t + apply_layer(self.conv_h, r * h_tm1))
+        # z = self.inner_activation(xz_t + apply_layer(self.conv_z, h_tm1))
+        # r = self.inner_activation(xr_t + apply_layer(self.conv_r, h_tm1))
+        # hh_t = self.activation(xh_t + apply_layer(self.conv_h, r * h_tm1))
+        z = self.inner_activation(xz_t + self.conv_z(h_tm1))
+        r = self.inner_activation(xr_t + self.conv_r(h_tm1))
+        hh_t = self.activation(xh_t + self.conv_h(r * h_tm1))
         h_t = z * h_tm1 + (1 - z) * hh_t
         h_t = K.batch_flatten(h_t)
         return h_t, [h_t, ]
@@ -312,7 +323,7 @@ class TimeDistributedModel(MaskedLayer):
     #                                          mask=None)
     #     return outputs
 
-    def get_output(self, train=False):
+    def get_output(self, train=True):
         X = self.get_input(train)
         batch_size = self._get_batch_size(X)
         if K._BACKEND == 'theano':
