@@ -330,17 +330,17 @@ class DifferentiableRAM(Layer):
     def get_output(self, train=False):
         X = self.get_input(train)
         p = self.locnet(X)
-        gx, gy, sigma2, delta, gamma = self._get_attention_params(
-            p, self.N_points)
+        gx, gy, sigma2, delta, gamma = self._get_attention_params(p)
         Fx, Fy = self._get_filterbank(
-            gx, gy, sigma2, delta, self.N_points)
+            gx, gy, sigma2, delta)
         output = self._read(X, gamma, Fx, Fy)
         if self.return_theta:
             return p
         else:
             return output
 
-    def _get_attention_params(self, p, N):
+    def _get_attention_params(self, p):
+        N = self.N_points
         gx = self.width * (p[:, 0]+1) / 2.
         gy = self.height * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
