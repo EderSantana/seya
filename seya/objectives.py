@@ -24,7 +24,7 @@ def gaussianKL(dumb, y_pred):
 
 def correntropy(sigma=1.):
     def func(y_true, y_pred):
-        return -K.sum(K.exp(-K.sqr(y_true - y_pred)/sigma))
+        return -K.mean(K.exp(-K.sqr(y_true - y_pred)/sigma), -1)
     return func
 
 
@@ -73,7 +73,7 @@ def gdl(img_shape, alpha=2):
                    K.abs(Y_pred[:, :, 1:, :] - Y_pred[:, :, :-1, :]), alpha)
         t2 = K.pow(K.abs(Y_true[:, :, :, :-1] - Y_true[:, :, :, 1:]) -
                    K.abs(Y_pred[:, :, :, :-1] - Y_pred[:, :, :, 1:]), alpha)
-        out = K.sum(K.batch_flatten(t1 + t2), -1)
+        out = K.mean(K.batch_flatten(t1 + t2), -1)
         return out
     return func
 
@@ -95,6 +95,6 @@ def gdl_vid(img_shape, alpha=2):
                    K.abs(Y_pred[:, :, :, 1:, :] - Y_pred[:, :, :, :-1, :]), alpha)
         t2 = K.pow(K.abs(Y_true[:, :, :, :, :-1] - Y_true[:, :, :, :, 1:]) -
                    K.abs(Y_pred[:, :, :, :, :-1] - Y_pred[:, :, :, :, 1:]), alpha)
-        out = K.sum(K.batch_flatten(t1 + t2), -1)
+        out = K.mean(K.batch_flatten(t1 + t2), -1)
         return out
     return func
