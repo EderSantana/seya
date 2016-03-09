@@ -1,4 +1,5 @@
 import numpy as np
+import keras.backend as K
 from keras.callbacks import Callback
 
 
@@ -23,7 +24,7 @@ class RenormalizeWeight(Callback):
     def __init__(self, W, transpose=False):
         Callback.__init__(self)
         self.W = W
-        self.W_shape = self.W.get_value().shape
+        self.W_shape = K.get_value(self.W).shape
         self.transpose = transpose
 
     def on_batch_begin(self, batch, logs={}):
@@ -31,14 +32,15 @@ class RenormalizeWeight(Callback):
         if len(self.W_shape) == 4:
             if self.transpose:
                 W = W.transpose(1, 0, 2, 3)
+                this_shape = W.shape
             W = W.reshape((self.W_shape[0], -1))
         elif self.transpose:
             W = W.T
         norm = np.sqrt((W**2).sum(axis=-1))
         W /= norm[:, None]
-        W = W.reshape(self.W_shape)
         if self.transpose:
             if len(self.W_shape) == 4:
+                W = W.reshape(this_shape)
                 W = W.transpose(1, 0, 2, 3)
             else:
                 W = W.T

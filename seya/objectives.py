@@ -67,6 +67,8 @@ def gdl(img_shape, alpha=2):
          by Mathieu et. al.
     """
     def func(y_true, y_pred):
+        y_true = K.batch_flatten(y_true)
+        y_pred = K.batch_flatten(y_pred)
         Y_true = K.reshape(y_true, (-1, ) + img_shape)
         Y_pred = K.reshape(y_pred, (-1, ) + img_shape)
         t1 = K.pow(K.abs(Y_true[:, :, 1:, :] - Y_true[:, :, :-1, :]) -
@@ -78,7 +80,7 @@ def gdl(img_shape, alpha=2):
     return func
 
 
-def gdl_vid(img_shape, alpha=2):
+def gdl_video(img_shape, alpha=2):
     """Image gradient difference loss for videos
 
     img_shape: (time, channels, rows, cols) shape to resize the input

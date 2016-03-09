@@ -43,6 +43,40 @@ class GaussianKL(Regularizer):
         return {"name": self.__class__.__name__}
 
 
+class ExponentialKL(Regularizer):
+    """ KL-divergence between two exponentially distrubted random variables.
+    Useful for Variational AutoEncoders.
+    Use this as an activation regularizer
+
+    Parameters:
+    -----------
+    _lambda: parameter of the input distributions
+    prior_lambda: paramater of the desired distribution (scale or rate)
+    regularizer_scale: Rescales the regularization cost. Keep this 1 for most cases.
+
+    Notes:
+    ------
+    See seya.layers.variational.VariationalExp for usage example
+
+    """
+    def __init__(self, _lambda, prior_lambda=1.,
+                 regularizer_scale=1):
+        self.regularizer_scale = regularizer_scale
+        self._lambda = _lambda
+        self.prior_lambda = prior_lambda
+        super(ExponentialKL, self).__init__()
+
+    def __call__(self, loss):
+        # See Variational Auto-Encoding Bayes by Kingma and Welling.
+        kl = (K.log(self._lambda) - K.log(self.prior_lambda) +
+              self.prior_lambda/self._lambda - 1)
+        loss += K.mean(kl) * self.regularizer_scale
+        return loss
+
+    def get_config(self):
+        return {"name": self.__class__.__name__}
+
+
 class LambdaRegularizer(Regularizer):
     def __init__(self, cost):
         super(LambdaRegularizer, self).__init__()
