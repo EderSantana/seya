@@ -3,6 +3,7 @@ import theano
 import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 from keras import backend as K
+from keras.utils.generic_utils import Progbar
 
 
 def batched_dot(input, W_list, b_list, sizes_list):
@@ -14,12 +15,15 @@ def batched_dot(input, W_list, b_list, sizes_list):
     return [Y[:, sl[i]:sl[i+1]] for i in range(len(sizes_list))]
 
 
-def batchwise_function(func, X, batch_size=100):
-    Y = [func([X[i*batch_size:(i+1)*batch_size]]) for i in range(
-        0, X.shape[0]//batch_size)]
-    # Y = []
-    # for i in range(0, X.shape[0] // batch_size):
-    #     Y += [func([X[i*batch:(i+1)*batch_size]])]
+def batchwise_function(func, X, batch_size=100, verbose=1):
+    # Y = [func([X[i*batch_size:(i+1)*batch_size]]) for i in range(
+    #    0, X.shape[0]//batch_size)]
+    Y = []
+    progbar = Progbar(X.shape[0])
+    for i in range(0, X.shape[0] // batch_size):
+        Y += [func([X[i*batch_size:(i+1)*batch_size]])]
+        if verbose > 0:
+            progbar.add(batch_size)
     return np.concatenate(Y, axis=0)
 
 
