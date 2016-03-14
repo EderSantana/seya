@@ -1,9 +1,6 @@
 from __future__ import print_function
-from keras import backend as K
 from keras.models import Sequential
-from keras.layers.embeddings import Embedding
-from keras.layers.core import (Activation, Dense, Merge, Dropout,
-                               Lambda, LambdaMerge, Permute)
+from keras.layers.core import Lambda, Dense
 from keras.utils.data_utils import get_file
 from keras.preprocessing.sequence import pad_sequences
 from functools import reduce
@@ -58,8 +55,6 @@ def get_stories(f, only_supporting=False, max_length=None):
     If max_length is supplied, any stories longer than max_length tokens will be discarded.
     '''
     data = parse_stories(f.readlines(), only_supporting=only_supporting)
-    # flatten = lambda data: reduce(lambda x, y: x + y, data)
-    # data = [(flatten(story), q, answer) for story, q, answer in data if not max_length or len(flatten(story)) < max_length]
     return data
 
 
@@ -75,7 +70,7 @@ def vectorize_stories(data, word_idx, memory_length, input_length):
         X.append(x)
         Xq.append(xq)
         Y.append(y)
-    padded_X = [pad_sequences(x, maxlen=input_length) for x in X]
+    padded_X = [pad_sequences(xx, maxlen=input_length) for xx in X]
     out = []
     # pad stories
     for story in padded_X:
@@ -133,16 +128,21 @@ question = Sequential()
 question.add(Lambda(lambda x: x, input_shape=(1, vocab_size),
                     output_shape=(1, vocab_size)))
 
-memnn = MemN2N([facts, question], output_dim, vocab_size, input_length,
-               memory_length, output_shape=(vocab_size,))
+memnn = MemN2N([facts, question], output_dim=output_dim, input_dim=vocab_size,
+               input_length=input_length,
+               memory_length=memory_length, hops=3, output_shape=(vocab_size,))
 memnn.build()
 
 model = Sequential()
 model.add(memnn)
+model.add(Dense(vocab_size, activation="softmax"))
 
+W = model.trainable_weights[0].get_value()
 model.compile("rmsprop", "categorical_crossentropy")
 model.fit([inputs_train, queries_train], answers_train,
           batch_size=32,
-          nb_epoch=120,
+          nb_epoch=100,
           show_accuracy=True,
-          validation_data=([inputs_test, queries_test, inputs_test], answers_test))
+          validation_data=([inputs_test, queries_test], answers_test))
+
+# print(W - model.trainable_weights[0].get_value())

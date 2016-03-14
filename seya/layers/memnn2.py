@@ -18,7 +18,7 @@ class MemN2N(LambdaMerge):
         self.mode = mode
         self.init = initializations.get(init)
         self.emb_init = initializations.get(emb_init)
-        output_shape = (self.input_dim, )
+        output_shape = (self.output_dim, )
 
         super(MemN2N, self).__init__(layers, lambda x: x, output_shape)
 
@@ -30,19 +30,22 @@ class MemN2N(LambdaMerge):
         self.trainable_weights = []
         for i in range(self.hops):
             # memory embedding - A
-            A = self.emb_init((self.input_dim, self.output_dim),
-                              name="{}_Wm_{}".format(self.name, i))
+            if self.mode == "adjacent" and i > 0:
+                A = self.outputs[-1]
+            else:
+                A = self.emb_init((self.input_dim, self.output_dim),
+                                  name="{}_A_{}".format(self.name, i))
+                self.trainable_weights += [A]
             self.memory.append(A)
-            self.trainable_weights += [A]
 
             # outputs embedding - C
-            if self.mode == "adjacent" and i > 1:
-                Wo = self.outputs[-1]
-            elif self.mode == "untied" or i == 0:
-                Wo = self.emb_init((self.input_dim, self.output_dim),
-                                   name="{}_Wo_{}".format(self.name, i))
-                self.trainable_weights += [Wo]
-            self.outputs.append(Wo)
+            # if self.mode == "adjacent" and i > 1:
+            #    Wo = self.outputs[-1]
+            # elif self.mode == "untied" or i == 0:
+            C = self.emb_init((self.input_dim, self.output_dim),
+                              name="{}_C_{}".format(self.name, i))
+            self.trainable_weights += [C]
+            self.outputs.append(C)
 
             # if self.mode == "rnn"
             # H = self.init((self.output_dim, self.output_dim),
@@ -56,11 +59,16 @@ class MemN2N(LambdaMerge):
         if self.mode == "adjacent":
             self.W = self.outputs[-1].T
             self.b = K.zeros((self.input_dim,), name="{}_b".format(self.name))
+            # self.trainable_weights += [self.b]
 
         # question embedding - B
         self.B = self.emb_init((self.input_dim, self.output_dim),
-                               name="{}_B_{}".format(self.name, i))
+                               name="{}_B".format(self.name))
         self.trainable_weights += [self.B]
+
+        # Temporal embedding
+        self.Te = self.emb_init((self.input_length, self.output_dim))
+        self.trainable_weights += [self.Te]
 
     def get_output(self, train=False):
         inputs = [layer.get_output(train) for layer in self.layers]
@@ -68,37 +76,41 @@ class MemN2N(LambdaMerge):
         # WARN make sure input layers are Embedding layers with identity init
         # facts = K.argmax(facts, axis=-1)
         # question = K.argmax(question, axis=-1)
-        u = self.lookup(question, self.B, 1)  # just 1 question
+        u, mask_q = self.lookup(question, self.B, 1)  # just 1 question
         for A, C in zip(self.memory, self.outputs):
-            m = self.lookup(facts, A, self.memory_length)
-            c = self.lookup(facts, C, self.memory_length)
+            m, mask_m = self.lookup(facts, A, self.memory_length)
+            c, mask_c = self.lookup(facts, C, self.memory_length)
 
             # attention weights
-            p = self.attention(m, u)
+            p = self.attention(m, u, mask_m)
 
             # output
             o = self.calc_output(c, p)
             u = o + u
-        u = K.dot(u[:, 0, :], self.W) + self.b
-        return K.softmax(u)
+        # u = K.dot(u[:, 0, :], self.W) + self.b
+        return u[:, 0, :]  # K.softmax(u)
 
     def lookup(self, x, W, memory_length):
         # shape: (batch*memory_length, input_length)
         x = K.cast(K.reshape(x, (-1, self.input_length)), 'int32')
+        mask = K.expand_dims(K.not_equal(x, 0.), dim=-1)
         # shape: (batch*memory_length, input_length, output_dim)
         X = K.gather(W, x)
         if self.bow_mode == "bow":
             # shape: (batch*memory_length, output_dim)
-            X = K.sum(X, axis=1)
+            X = K.sum(X + K.expand_dims(self.Te, 0), axis=1)
         # shape: (batch, memory_length, output_dim)
         X = K.reshape(X, (-1, memory_length, self.output_dim))
-        return X
+        return X, mask
 
-    def attention(self, m, q):
+    def attention(self, m, q, mask):
+        # mask original shape is (batch*memory_length, input_length, 1)
+        # shape (batch, memory)
+        mask = K.reshape(mask[:, 0], (-1, self.memory_length))
         # shape: (batch, memory_length, 1)
         p = T.batched_tensordot(m, q, (2, 2))
         # shape: (batch, memory_length)
-        p = K.softmax(p[:, :, 0])
+        p = K.softmax(p[:, :, 0])  # * K.cast(mask, 'float32')
         # shape: (batch, 1, memory_length)
         return K.expand_dims(p, dim=1)
 
