@@ -42,7 +42,7 @@ class TestMemNN(unittest.TestCase):
         inp = np.random.randint(0, input_dim,
                                 (1, memory_length, input_length))
         que = np.random.randint(0, input_dim, (1, 1, input_length))
-        print(model.predict([inp, que]).shape)
+        assert model.predict([inp, que]).shape == (1, input_dim)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

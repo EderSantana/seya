@@ -18,29 +18,22 @@ class MemN2N(LambdaMerge):
         self.mode = mode
         self.init = initializations.get(init)
         self.emb_init = initializations.get(emb_init)
-        output_shape = (self.output_dim, )
+        output_shape = (self.input_dim, )
 
         super(MemN2N, self).__init__(layers, lambda x: x, output_shape)
 
     def build(self):
         # list of embedding layers
-        self.question = []
         self.outputs = []
         self.memory = []
-        self.Ws = []
+        # self.Hs = []  # if self.mode == "rnn"
         self.trainable_weights = []
         for i in range(self.hops):
             # memory embedding - A
-            Wm = self.emb_init((self.input_dim, self.output_dim),
-                               name="{}_Wm_{}".format(self.name, i))
-            self.memory.append(Wm)
-            self.trainable_weights += [Wm]
-
-            # question embedding - B
-            Wq = self.emb_init((self.input_dim, self.output_dim),
-                               name="{}_Wq_{}".format(self.name, i))
-            self.question.append(Wq)
-            self.trainable_weights += [Wq]
+            A = self.emb_init((self.input_dim, self.output_dim),
+                              name="{}_Wm_{}".format(self.name, i))
+            self.memory.append(A)
+            self.trainable_weights += [A]
 
             # outputs embedding - C
             if self.mode == "adjacent" and i > 1:
@@ -51,16 +44,23 @@ class MemN2N(LambdaMerge):
                 self.trainable_weights += [Wo]
             self.outputs.append(Wo)
 
-            if self.mode == "adjacent" and i == self.hops-1:
-                W = Wm.T
-            else:
-                W = self.init((self.output_dim, self.input_dim),
-                              name="{}_W_{}".format(self.name, i))
-                self.trainable_weights += [W]
-            b = K.zeros((self.input_dim,),
-                        name="{}_b_{}".format(self.name, i))
-            self.Ws += [[W, b]]
-            self.trainable_weights += [b]
+            # if self.mode == "rnn"
+            # H = self.init((self.output_dim, self.output_dim),
+            #               name="{}_H_{}".format(self.name, i))
+            # self.trainable_weights += [H]
+            # b = K.zeros((self.input_dim,),
+            #             name="{}_b_{}".format(self.name, i))
+            # self.Hs += [H]
+            # self.trainable_weights += [H]
+
+        if self.mode == "adjacent":
+            self.W = self.outputs[-1].T
+            self.b = K.zeros((self.input_dim,), name="{}_b".format(self.name))
+
+        # question embedding - B
+        self.B = self.emb_init((self.input_dim, self.output_dim),
+                               name="{}_B_{}".format(self.name, i))
+        self.trainable_weights += [self.B]
 
     def get_output(self, train=False):
         inputs = [layer.get_output(train) for layer in self.layers]
@@ -68,20 +68,19 @@ class MemN2N(LambdaMerge):
         # WARN make sure input layers are Embedding layers with identity init
         # facts = K.argmax(facts, axis=-1)
         # question = K.argmax(question, axis=-1)
-        u = question
-        for A, B, C, (W, b) in zip(self.memory, self.question, self.outputs,
-                                   self.Ws):
+        u = self.lookup(question, self.B, 1)  # just 1 question
+        for A, C in zip(self.memory, self.outputs):
             m = self.lookup(facts, A, self.memory_length)
-            q = self.lookup(u, B, 1)  # just 1 question
             c = self.lookup(facts, C, self.memory_length)
 
             # attention weights
-            p = self.attention(m, q)
+            p = self.attention(m, u)
 
             # output
-            o = self.calc_output(c, p, W, b)
+            o = self.calc_output(c, p)
             u = o + u
-        return K.softmax(u[:, 0, :])
+        u = K.dot(u[:, 0, :], self.W) + self.b
+        return K.softmax(u)
 
     def lookup(self, x, W, memory_length):
         # shape: (batch*memory_length, input_length)
@@ -103,11 +102,14 @@ class MemN2N(LambdaMerge):
         # shape: (batch, 1, memory_length)
         return K.expand_dims(p, dim=1)
 
-    def calc_output(self, c, p, W, b):
+    def calc_output(self, c, p):
         # shape: (batch, memory_length, 1)
         p = K.permute_dimensions(p, (0, 2, 1))
-        # shape: (batch, 1, output_dim)
+        # shape: (batch, output_dim)
         o = K.sum(c * p, axis=1)
-        o = K.dot(o, W) + b
+        # if self.mode == "rnn":
+        # import theano
+        # W = theano.printing.Print('[Debug] W shape: ', attrs=("shape",))(W)
+        # o = K.dot(o, W) + b
         # shape: (batch, 1, output_dim)
         return K.expand_dims(o, dim=1)
