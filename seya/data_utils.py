@@ -93,7 +93,7 @@ class RotateData(DataTransformer):
 
 class HDF5Tensor():
     def __init__(self, datapath, dataset, start, end,
-                 time_start, time_end, normalizer=None):
+                 time_start, time_end, time_step=1, normalizer=None):
         self.refs = defaultdict(int)
         if datapath not in list(self.refs.keys()):
             f = h5py.File(datapath)
@@ -106,6 +106,7 @@ class HDF5Tensor():
         self.normalizer = normalizer
         self.time_start = time_start
         self.time_end = time_end
+        self.time_step = time_step
 
     def __len__(self):
         return self.end - self.start
@@ -132,15 +133,16 @@ class HDF5Tensor():
             else:
                 raise IndexError
         if self.normalizer is not None:
-            return self.normalizer(self.data[idx,
-                                             self.time_start:self.time_end])
+            return self.normalizer(
+                self.data[idx, self.time_start:self.time_end:self.time_step])
         else:
-            return self.data[idx, self.time_start:self.time_end]
+            return self.data[idx, self.time_start:self.time_end:self.time_step]
 
     @property
     def shape(self):
-        return tuple((self.end - self.start, self.time_end -
-                      self.time_start) + self.data.shape[2:])
+        return tuple((self.end - self.start,
+                      (self.time_end - self.time_start)/self.time_step) +
+                     self.data.shape[2:])
 
     @property
     def ndim(self):

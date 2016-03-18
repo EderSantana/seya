@@ -1,6 +1,7 @@
 from __future__ import print_function
 from keras.models import Sequential
 from keras.layers.core import Lambda, Dense
+from keras.layers.recurrent import LSTM
 from keras.utils.data_utils import get_file
 from keras.preprocessing.sequence import pad_sequences
 from functools import reduce
@@ -91,6 +92,7 @@ challenges = {
     'two_supporting_facts_10k': 'tasks_1-20_v1-2/en-10k/qa2_two-supporting-facts_{}.txt',
 }
 
+# challenge_type = 'two_supporting_facts_10k'
 challenge_type = 'single_supporting_fact_10k'
 challenge = challenges[challenge_type]
 
@@ -130,11 +132,12 @@ question.add(Lambda(lambda x: x, input_shape=(1, vocab_size),
 
 memnn = MemN2N([facts, question], output_dim=output_dim, input_dim=vocab_size,
                input_length=input_length,
-               memory_length=memory_length, hops=3, output_shape=(vocab_size,))
+               memory_length=memory_length, hops=1, output_shape=(vocab_size,))
 memnn.build()
 
 model = Sequential()
 model.add(memnn)
+model.add(LSTM(32))
 model.add(Dense(vocab_size, activation="softmax"))
 
 W = model.trainable_weights[0].get_value()
