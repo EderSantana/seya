@@ -22,6 +22,11 @@ def _update_controller(self, inp, h_tm1, M):
     is the function to do it. Pretty much copy+pasta from Keras
     """
     x = T.concatenate([inp, M], axis=-1)
+    #1 is for gru, 2 is for lstm
+    if len(h_tm1) in [1,2]:
+        if hasattr(self.rnn,"get_constants"):
+            BW,BU = self.rnn.get_constants(x)
+            h_tm1 += (BW,BU)
     # update state
     _, h = self.rnn.step(x, h_tm1)
 
