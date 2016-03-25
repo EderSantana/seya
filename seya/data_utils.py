@@ -169,13 +169,13 @@ class IndexedGenerator(object):
     indices: array of int, numpy array of dataset indices
 
     """
-    def __init__(self, indices=None, normalizer=None):
+    def __init__(self, indices=None, callback=None):
         if indices is not None:
             self.indices = indices
         else:
             self.indices = range(len(indices))
         # self.data = f[dataset]
-        self.normalizer = normalizer
+        self.callback = callback
         self.lock = threading.Lock()
 
     def _flow_index(self, N, batch_size=32, shuffle=True, seed=None):
@@ -228,6 +228,8 @@ class IndexedGenerator(object):
         idx = sorted(self.indices[index_array.tolist()].tolist())
         # import pdb; pdb.set_trace()
         bX = self.X[idx]
+        if self.callback is not None:
+            bX = self.callback(bX)
         bY = self.y[idx]
         return bX, bY
 
