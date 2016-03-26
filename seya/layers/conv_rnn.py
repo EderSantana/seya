@@ -1,7 +1,6 @@
 from __future__ import division
 import numpy as np
-
-from theano import tensor as T
+import theano.tensor as T
 
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.layers.recurrent import Recurrent
@@ -10,7 +9,7 @@ from keras import initializations
 from keras import activations
 from keras import backend as K
 
-# from seya.utils import apply_layer
+from seya.utils import apply_layer
 
 
 class ConvRNN(Recurrent):
@@ -41,7 +40,6 @@ class ConvRNN(Recurrent):
                  activation='tanh', inner_activation='hard_sigmoid',
                  weights=None, **kwargs):
         self.batch_size = batch_size
-        self._check_tensorflow()
         self.border_mode = 'same'
         self.filter_dim = filter_dim
         self.reshape_dim = reshape_dim
@@ -57,11 +55,6 @@ class ConvRNN(Recurrent):
 
         super(ConvRNN, self).__init__(**kwargs)
 
-    def _check_tensorflow(self):
-        if K._BACKEND == "tensorflow":
-            if not self.batch_size:
-                raise ValueError("Define batch_size")
-
     def _get_batch_size(self, X):
         if K._BACKEND == 'theano':
             batch_size = X.shape[0]
@@ -69,20 +62,11 @@ class ConvRNN(Recurrent):
             batch_size = self.batch_size
         return batch_size
 
-    # def _get_time_length(self, X=None):
-    #     if K._BACKEND == 'theano':
-    #         if X is None:
-    #             return self.input_shape[1]
-    #         else:
-    #             return self.X.shape[0]
-    #     else:
-    #         return self.time_length
-
     def build(self):
         if K._BACKEND == 'theano':
             batch_size = None
         else:
-            batch_size = self.batch_size
+            batch_size = None  # self.batch_size
         input_dim = self.input_shape
         bm = self.border_mode
         reshape_dim = self.reshape_dim
@@ -100,7 +84,8 @@ class ConvRNN(Recurrent):
         # input to hidden connections
         self.conv_x.build()
 
-        self.max_pool = MaxPooling2D(pool_size=self.subsample)
+        self.max_pool = MaxPooling2D(pool_size=self.subsample, input_shape=hidden_dim)
+        self.max_pool.build()
 
         self.trainable_weights = self.conv_h.trainable_weights + self.conv_x.trainable_weights
 
@@ -125,9 +110,7 @@ class ConvRNN(Recurrent):
         h_tm1 = K.reshape(states[0], hidden_dim)
 
         x_t = K.reshape(x, input_shape)
-        # Wx_t = apply_layer(self.conv_x, x_t)
         Wx_t = self.conv_x(x_t, train=True)
-        # h_t = self.activation(Wx_t + apply_layer(self.conv_h, h_tm1))
         h_t = self.activation(Wx_t + self.conv_h(h_tm1, train=True))
         h_t = K.batch_flatten(h_t)
         return h_t, [h_t, ]
@@ -173,10 +156,7 @@ class ConvGRU(ConvRNN):
             inner_activation=inner_activation, weights=weights, **kwargs)
 
     def build(self):
-        if K._BACKEND == 'theano':
-            batch_size = None
-        else:
-            batch_size = self.batch_size
+        batch_size = None
         input_dim = self.input_shape
         bm = self.border_mode
         reshape_dim = self.reshape_dim
@@ -223,23 +203,14 @@ class ConvGRU(ConvRNN):
         h_tm1 = K.reshape(states[0], hidden_dim)
 
         x_t = K.reshape(x, input_shape)
-        # xz_t = apply_layer(self.conv_x_z, x_t)
-        # xr_t = apply_layer(self.conv_x_r, x_t)
-        # xh_t = apply_layer(self.conv_x_h, x_t)
         xz_t = self.conv_x_z(x_t, train=True)
         xr_t = self.conv_x_r(x_t, train=True)
         xh_t = self.conv_x_h(x_t, train=True)
 
-        # xz_t = apply_layer(self.max_pool, xz_t)
-        # xr_t = apply_layer(self.max_pool, xr_t)
-        # xh_t = apply_layer(self.max_pool, xh_t)
-        xz_t = self.max_pool(xz_t)
-        xr_t = self.max_pool(xr_t)
-        xh_t = self.max_pool(xh_t)
+        xz_t = apply_layer(self.max_pool, xz_t)
+        xr_t = apply_layer(self.max_pool, xr_t)
+        xh_t = apply_layer(self.max_pool, xh_t)
 
-        # z = self.inner_activation(xz_t + apply_layer(self.conv_z, h_tm1))
-        # r = self.inner_activation(xr_t + apply_layer(self.conv_r, h_tm1))
-        # hh_t = self.activation(xh_t + apply_layer(self.conv_h, r * h_tm1))
         z = self.inner_activation(xz_t + self.conv_z(h_tm1))
         r = self.inner_activation(xr_t + self.conv_r(h_tm1))
         hh_t = self.activation(xh_t + self.conv_h(r * h_tm1))
@@ -295,12 +266,12 @@ class TimeDistributedModel(MaskedLayer):
         return batch_size
 
     def build(self):
-        if K._BACKEND == 'theano':
-            batch_size = None
-        else:
-            batch_size = self.batch_size
+        # if K._BACKEND == 'theano':
+        #     batch_size = None
+        # else:
+        #     batch_size = self.batch_size
         input_shape = self.input_shape
-        self.input = K.placeholder(shape=(batch_size, input_shape[1],
+        self.input = K.placeholder(shape=(None, input_shape[1],
                                           input_shape[2]))
         self.model.build()
         self.trainable_weights = self.model.trainable_weights
@@ -325,17 +296,22 @@ class TimeDistributedModel(MaskedLayer):
 
     def get_output(self, train=True):
         X = self.get_input(train)
-        batch_size = self._get_batch_size(X)
+        out_dim = np.prod(self.model.output_shape[1:])
+        # batch_size = self._get_batch_size(X)
         if K._BACKEND == 'theano':
             time_len = K.shape(X)[1]
+            new_shape = (-1, time_len, out_dim)
         else:
-            time_len = self.input_shape[2]
-        reshape_dim = (batch_size*time_len, ) + self.model.input_shape[1:]
-        out_dim = np.prod(self.model.output_shape[1:])
+            # time_len = self.input_shape[2:3]
+            time_len = K.shape(X)[1]
+            new_shape = K.concatenate([np.asarray([-1, ]), time_len,
+                                       np.asarray([out_dim, ])])
+
+        reshape_dim = (-1, ) + self.model.input_shape[1:]
         Inp = K.batch_flatten(X)  # (sample*time, dim)
         Inp = K.reshape(Inp, reshape_dim)  # (sample*time, dim1, dim2, ...)
         Y = self.model(Inp, train=train)
-        Y = K.reshape(Y, (batch_size, time_len, out_dim))  # (sample, time, dim_out)
+        Y = K.reshape(Y, new_shape)  # (sample, time, dim_out)
         return Y
 
     @property
