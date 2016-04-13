@@ -2,28 +2,36 @@ import numpy as np
 
 import theano
 import theano.tensor as T
-from theano.ifelse import ifelse
 
 floatX = theano.config.floatX
 
 from keras.layers.recurrent import Recurrent, GRU, LSTM
 from keras import backend as K
 
-from seya.utils import rnn_states
 tol = 1e-4
+
+def _update_controller(self, inp , h_tm1):
+    """We have to update the inner RNN inside the NTM, this
+    is the function to do it. Pretty much copy+pasta from Keras
+    """
+
+    #1 is for gru, 2 is for lstm
+    if len(h_tm1) in [1,2]:
+        if hasattr(self.rnn,"get_constants"):
+            BW,BU = self.rnn.get_constants(inp)
+            h_tm1 += (BW,BU)
+    # update state
+            
+    op_t, h = self.rnn.step(inp, h_tm1)
+     
+    return op_t  , h
 
 def _update_neural_stack(self, V_tm1, s_tm1, d_t, u_t, v_t, time,stack=True):
     
     ############################################################
     #Equation 1
-    def print_name_shape(name,x):
-        return T.cast( K.sum(theano.printing.Print(name)(x.shape)) * 0,"float32")
-    
-    V_t = V_tm1 + print_name_shape("V_tm1",V_tm1) + \
-                  print_name_shape("s_tm1",s_tm1) + \
-                  print_name_shape("d_t",d_t) +\
-                  print_name_shape("u_t",u_t) +\
-                  print_name_shape("v_t",v_t)
+  
+    V_t = V_tm1
                   
     V_t = T.set_subtensor(V_t[::,time,::],v_t)
         
@@ -107,20 +115,19 @@ def _update_neural_stack(self, V_tm1, s_tm1, d_t, u_t, v_t, time,stack=True):
     
     return V_t, s_t,r_t
 
+
 class Stack(Recurrent):
-    """ Neural Turing Machines
+    """ Stack and queue network
+    
+    output_dim
+    n_slots = number of memory slot
+    m_length = dimention of the memory
+    rnn_size = output length of the memory controler
+    inner_rnn = "lstm" only lstm is supported 
 
-    Non obvious parameter:
-    ----------------------
-    shift_range: int, number of available shifts, ex. if 3, avilable shifts are
-                 (-1, 0, 1)
-    n_slots: number of memory locations
-    m_length: memory length at each location
 
-    Known issues:
-    -------------
-    Theano may complain when n_slots == 1.
-
+    from Learning to Transduce with Unbounded Memory
+    [[http://arxiv.org/pdf/1506.02516.pdf]]
     """
     def __init__(self, output_dim, n_slots, m_length,
                  inner_rnn='lstm',rnn_size=64, stack=True,
@@ -131,6 +138,9 @@ class Stack(Recurrent):
         self.m_length = m_length
         self.init = init
         self.inner_init = inner_init
+        if inner_rnn != "lstm":
+            print "Only lstm is supported"
+            raise
         self.inner_rnn = inner_rnn
         self.rnn_size = rnn_size
         self.stack = stack
@@ -216,121 +226,33 @@ class Stack(Recurrent):
         else:
             return input_shape[0], self.output_dim
 
-    def get_full_output(self, train=False):
-        """
-        This method is for research and visualization purposes. Use it as
-        X = model.get_input()  # full model
-        Y = ntm.get_output()    # this layer
-        F = theano.function([X], Y, allow_input_downcast=True)
-        [memory, read_address, write_address, rnn_state] = F(x)
-
-        if inner_rnn == "lstm" use it as
-        [memory, read_address, write_address, rnn_cell, rnn_state] = F(x)
-
-        """
-        # input shape: (nb_samples, time (padded with zeros), input_dim)
-        X = self.get_input(train)
-        assert K.ndim(X) == 3
-        if K._BACKEND == 'tensorflow':
-            if not self.input_shape[1]:
-                raise Exception('When using TensorFlow, you should define ' +
-                                'explicitely the number of timesteps of ' +
-                                'your sequences. Make sure the first layer ' +
-                                'has a "batch_input_shape" argument ' +
-                                'including the samples axis.')
-
-        mask = self.get_output_mask(train)
-        if mask:
-            # apply mask
-            X *= K.cast(K.expand_dims(mask), X.dtype)
-            masking = True
-        else:
-            masking = False
-
-        if self.stateful:
-            initial_states = self.states
-        else:
-            initial_states = self.get_initial_states(X)
-
-        states = rnn_states(self.step, X, initial_states,
-                            go_backwards=self.go_backwards,
-                            masking=masking)
-        return states
-
     def step(self, x, states):
         
         r_tm1, V_tm1,s_tm1,time = states[:4]
         h_tm1 = states[4:]
-        
-        def print_name_shape(name,x):
-            return T.cast( K.sum(theano.printing.Print(name)(x.shape)) * 0,"float32")
+ 
         
         
-        r_tm1 = r_tm1 +  print_name_shape("out\nr_tm1",r_tm1) + \
-                          print_name_shape("V_tm1",V_tm1) + \
-                          print_name_shape("s_tm1",s_tm1) + \
-                          print_name_shape("x",x) + \
-                          print_name_shape("h_tm1_0",h_tm1[0]) + \
-                          print_name_shape("h_tm1_1",h_tm1[1]) 
-                         
+        r_tm1 = r_tm1
         
-        op_t, h_t = self._update_controller( T.concatenate([x, r_tm1], axis=-1),
+        op_t, h_t = _update_controller(self, T.concatenate([x, r_tm1], axis=-1),
                                              h_tm1)
               
        # op_t = op_t  + print_name_shape("W_d",self.W_d.get_value()) 
-        op_t = op_t + print_name_shape("afterop_t",op_t)
+        op_t = op_t
         #op_t = op_t[:,0,:]
-        ao = K.dot(op_t, self.W_d)  
-        ao = ao +print_name_shape("ao",ao)
-        d_t = K.sigmoid( ao + self.b_d)  + print_name_shape("afterop2_t",op_t)
-        u_t = K.sigmoid(K.dot(op_t, self.W_u) + self.b_u)+ print_name_shape("d_t",op_t)
-        v_t = K.tanh(K.dot(op_t, self.W_v) + self.b_v) + print_name_shape("u_t",u_t)
-        o_t = K.tanh(K.dot(op_t, self.W_o) + self.b_o) + print_name_shape("v_t",v_t)
+        d_t = K.sigmoid( K.dot(op_t, self.W_d)  + self.b_d)  
+        u_t = K.sigmoid(K.dot(op_t, self.W_u) + self.b_u)
+        v_t = K.tanh(K.dot(op_t, self.W_v) + self.b_v)
+        o_t = K.tanh(K.dot(op_t, self.W_o) + self.b_o) 
         
-        o_t = o_t + print_name_shape("afterbulk_t",o_t)
         
         time = time + 1
         V_t, s_t, r_t = _update_neural_stack(self, V_tm1, s_tm1, d_t[::,0], 
                                              u_t[::,0], v_t,time[0],stack=self.stack)
         
-        #V_t, s_t, r_t = V_tm1,s_tm1,T.sum(V_tm1,axis = 1)
-        V_t  = V_t + print_name_shape("o_t",o_t) + \
-                          print_name_shape("r_t",r_t) + \
-                          print_name_shape("V_t",V_t) +\
-                          print_name_shape("s_t",s_t) 
-                        # T.cast( theano.printing.Print("time")(time[0]),"float32")
-        #time = T.set_subtensor(time[0],time[0] +)
-        
-        
+
        
         return o_t, [r_t, V_t, s_t, time] + h_t
 
-
-
-        
     
-    def _update_controller(self, inp , h_tm1):
-        """We have to update the inner RNN inside the NTM, this
-        is the function to do it. Pretty much copy+pasta from Keras
-        """
-    
-        def print_name_shape(name,x,shape=True):
-            if shape:
-                return T.cast( K.sum(theano.printing.Print(name)(x.shape)) * 0,"float32")
-            else:
-                return theano.printing.Print(name)(x)
-                
-        
-        
-        #1 is for gru, 2 is for lstm
-        if len(h_tm1) in [1,2]:
-            if hasattr(self.rnn,"get_constants"):
-                BW,BU = self.rnn.get_constants(inp)
-                h_tm1 += (BW,BU)
-        # update state
-                
-        op_t, h = self.rnn.step(inp + print_name_shape("inp",inp), h_tm1)
-    
-        
-        return op_t + print_name_shape("opt",op_t) +print_name_shape("h",h[0])  +print_name_shape("h",h[1])\
-                , h
