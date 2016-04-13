@@ -119,13 +119,15 @@ def _update_neural_stack(self, V_tm1, s_tm1, d_t, u_t, v_t, time,stack=True):
 class Stack(Recurrent):
     """ Stack and queue network
     
-    output_dim
+    
+    output_dim = output dimension
     n_slots = number of memory slot
     m_length = dimention of the memory
     rnn_size = output length of the memory controler
     inner_rnn = "lstm" only lstm is supported 
-
-
+    stack = True to create neural stack or False to create neural queue
+    
+    
     from Learning to Transduce with Unbounded Memory
     [[http://arxiv.org/pdf/1506.02516.pdf]]
     """
