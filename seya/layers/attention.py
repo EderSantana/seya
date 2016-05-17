@@ -1,6 +1,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
+import keras.backend as K
 
 from keras.layers.core import Layer
 
@@ -40,25 +41,20 @@ class SpatialTransformer(Layer):
         self.return_theta = return_theta
         super(SpatialTransformer, self).__init__(**kwargs)
 
-    def build(self):
-        if hasattr(self, 'previous'):
-            self.locnet.set_previous(self.previous)
-        self.locnet.build()
+    def build(self, input_shape):
+        self.locnet.build(input_shape)
         self.trainable_weights = self.locnet.trainable_weights
         self.regularizers = self.locnet.regularizers
         self.constraints = self.locnet.constraints
-        self.input = self.locnet.input  # This must be T.tensor4()
 
-    @property
-    def output_shape(self):
-        input_shape = self.input_shape
-        return (None, input_shape[1],
+    def output_shape_for(self, input_shape):
+        return (None, 3,
                 int(input_shape[2] / self.downsample_factor),
                 int(input_shape[2] / self.downsample_factor))
 
-    def get_output(self, train=False):
-        X = self.get_input(train)
-        theta = apply_model(self.locnet, X)
+
+    def call(self, X, mask=None):
+        theta = self.locnet.call(X)
         theta = theta.reshape((X.shape[0], 2, 3))
         output = self._transform(theta, X, self.downsample_factor)
 
@@ -188,183 +184,31 @@ class SpatialTransformer(Layer):
         return output
 
 
-class AttentionST(SpatialTransformer):
-    '''
-    A Spatial Transformer limitted to scaling,
-    cropping and translation.
-    '''
-    def __init__(self, *args, **kwargs):
-        super(AttentionST, self).__init__(*args, **kwargs)
-
-    def get_output(self, train=False):
-        X = self.get_input()
-        # locnet.get_output(X) should be shape (batchsize, 6)
-        mask = np.ones((2, 3))
-        mask[1, 0] = 0
-        mask[0, 1] = 0
-        mask = theano.shared(mask.astype(floatX))
-        theta = self.locnet.get_output(X).reshape((X.shape[0], 2, 3))
-        theta = theta * mask[None, :, :]
-
-        output = self._transform(theta, X, self.downsample_factor)
-        if self.return_theta:
-            return theta.reshape((X.shape[0], 6))
-        else:
-            return output
-
-
-class ST2(Layer):
-    '''This implementation is similar to the equations in the paper
-    but uses a lot more memory
-    '''
-    def __init__(self,
-                 localization_net,
-                 img_shape,
-                 downsample_factor=(1, 1),
-                 return_theta=False,
-                 **kwargs):
-        super(ST2, self).__init__()
-        self.ds = downsample_factor
-        self.locnet = localization_net
-        self.img_shape = img_shape
-        self.trainable_weights = localization_net.trainable_weights
-        self.regularizers = localization_net.regularizers
-        self.constraints = localization_net.constraints
-        self.input = localization_net.input  # this should be T.tensor4()
-        self.return_theta = return_theta
-
-    def get_output(self, train=False):
-        X = self.get_input()
-        # locnet.get_output(X) should be shape (batchsize, 6)
-        theta = self.locnet.get_output(train)  # .reshape((X.shape[0], 2, 3))
-        thetas = T.nnet.sigmoid(theta[:, :4])
-        thetat = T.nnet.sigmoid(theta[:, 4:]) * X.shape[2]
-        theta = T.concatenate([thetas.reshape((X.shape[0], 2, 2)),
-                               thetat.reshape((X.shape[0], 2, 1))],
-                              axis=2)
-
-        output = self._transform(X, theta, self.ds)
-        if self.return_theta:
-            return theta.reshape((X.shape[0], 6))
-        else:
-            return output
-
-    def _meshgrid(self, row, col):
-        x, y = np.meshgrid(np.linspace(0, row-1, row),
-                           np.linspace(0, col-1, col))
-        # x, y = np.meshgrid(np.linspace(-1, 1, row),
-        #                   np.linspace(-1, 1, col))
-        X = theano.shared(x.astype(floatX))
-        Y = theano.shared(y.astype(floatX))
-        ones = T.ones_like(X)
-        grid = T.concatenate([X[None, :, :], Y[None, :, :], ones[None, :, :]],
-                             axis=0)
-        return grid
-
-    def _transform(self, X, theta, ds):
-        b = X.shape[0]
-        chan, row, col = self.img_shape
-        new_row = row / ds[0]
-        new_col = col / ds[1]
-        grid = self._meshgrid(new_row, new_col)
-        new_grid = T.tensordot(theta, grid.reshape((3, new_row*new_col)),
-                               axes=(2, 0))
-        output = []
-        for i in range(chan):
-            out = X[:, i, :, :, None] * T.maximum(
-                0, 1 - abs(new_grid[:, None, None, 0, :] -
-                           grid[None, 0, :, :, None])) * T.maximum(
-                               0, 1 - abs(new_grid[:, None, None, 1, :]
-                                          - grid[None, 1, :, :, None]))
-            out = out.sum(axis=(1, 2)).reshape((b, row, col))
-            output.append(out.reshape((b, new_row,
-                                       new_col)).dimshuffle(0, 'x', 1, 2))
-        output = T.concatenate(output, axis=1)
-        return output
-
-
-class DifferentiableRAM(Layer):
-    """DifferentiableRAM uses Gaussian attention mechanism from DRAW [1]_
-
-    downsample_fator : float
-        A value of 1 will keep the orignal size of the image.
-        Values larger than 1 will down sample the image. Values below 1 will
-        upsample the image.
-        example image: height= 100, width = 100
-        downsample_factor = 2
-        output image will then be 50, 50 (pleaes, use square images)
-
-    References
-    ----------
-
+class Homography(Layer):
+    """Homography layer
     """
     def __init__(self,
-                 localization_net,
                  downsample_factor=1,
-                 return_theta=False,
                  **kwargs):
         self.downsample_factor = downsample_factor
-        self.locnet = localization_net
-        self.return_theta = return_theta
-        super(DifferentiableRAM, self).__init__(**kwargs)
+        super(Homography, self).__init__(**kwargs)
 
-    def build(self):
-        if hasattr(self, 'previous'):
-            self.locnet.set_previous(self.previous)
-        self.locnet.build()
-        self.trainable_weights = self.locnet.trainable_weights
-        self.regularizers = self.locnet.regularizers
-        self.constraints = self.locnet.constraints
-        self.input = self.locnet.input  # This must be T.tensor4()
-        self.N_points = self.output_shape[-1]
-        self.width = self.input_shape[2]
-        self.height = self.input_shape[2]
+    def build(self, input_shape):
+        W = np.zeros((2, 3), dtype='float32')
+        W[0, 0] = 1.
+        W[1, 1] = 1.
+        self.W = K.variable(W, name='{}_W'.format(self.name))
+        self.trainable_weights = [self.W]
+        self.regularizers()
 
-    @property
-    def output_shape(self):
-        input_shape = self.input_shape
+    def call(self, X, mask=None):
+        theta = self.W
+        theta = T.repeat(self.W.dimshuffle('x', 0, 1), X.shape[0], axis=0)
+        output = SpatialTransformer._transform(theta, X, self.downsample_factor)
+
+        return output
+
+    def output_shape_for(self, input_shape):
         return (None, input_shape[1],
-                int(input_shape[2] // self.downsample_factor),
-                int(input_shape[2] // self.downsample_factor))
-
-    def get_output(self, train=False):
-        X = self.get_input(train)
-        p = self.locnet(X)
-        gx, gy, sigma2, delta, gamma = self._get_attention_params(p)
-        Fx, Fy = self._get_filterbank(
-            gx, gy, sigma2, delta)
-        output = self._read(X, gamma, Fx, Fy)
-        if self.return_theta:
-            return p
-        else:
-            return output
-
-    def _get_attention_params(self, p):
-        N = self.N_points
-        gx = self.width * (p[:, 0]+1) / 2.
-        gy = self.height * (p[:, 1]+1) / 2.
-        sigma2 = T.exp(p[:, 2])
-        delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1.)
-        gamma = T.exp(p[:, 4])
-        return gx, gy, sigma2, delta, gamma
-
-    def _get_filterbank(self, gx, gy, sigma2, delta, N):
-        small = 1e-4
-        i = T.arange(N).astype("float32")
-        a = T.arange(self.width).astype("float32")
-        b = T.arange(self.height).astype("float32")
-
-        mx = gx[:, None] + delta[:, None] * (i - N/2. - .5)
-        my = gy[:, None] + delta[:, None] * (i - N/2. - .5)
-
-        Fx = T.exp(-(a - mx[:, :, None])**2 / 2. / sigma2[:, None, None])
-        Fx /= (Fx.sum(axis=-1)[:, :, None] + small)
-        Fy = T.exp(-(b - my[:, :, None])**2 / 2. / sigma2[:, None, None])
-        Fy /= (Fy.sum(axis=-1)[:, :, None] + small)
-        return Fx, Fy
-
-    def _read(self, x, gamma, Fx, Fy):
-        Fyx = (Fy[:, None, :, :, None] * x[:, :, None, :, :]).sum(axis=3)
-        FxT = Fx.dimshuffle(0, 2, 1)
-        FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
-        return gamma[:, None, None, None] * FyxFx
+                int(input_shape[2] / self.downsample_factor),
+                int(input_shape[2] / self.downsample_factor))
