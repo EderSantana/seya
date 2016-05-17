@@ -35,10 +35,8 @@ class NormLayer(Layer):
         self.threshold = threshold
         self.use_divisor = use_divisor
         self.nb_channels = nb_channels
-        self.input = K.placeholder(ndim=4)
 
-    def get_output(self, train=False):
-        X = self.get_input()
+    def call(self, X, mask=None):
         out = []
         if self.method == "lcn":
             for i in range(self.nb_channels):
