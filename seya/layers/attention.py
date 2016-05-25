@@ -193,14 +193,22 @@ class Homography(Layer):
 
     def build(self, input_shape):
         W = np.zeros((2, 3), dtype='float32')
-        W[0, 0] = 1.
-        W[1, 1] = 1.
+        W[0, 0] = .8
+        W[1, 1] = .5
         self.W = K.variable(W, name='{}_W'.format(self.name))
+        M = np.ones((2, 3), dtype='float32')
+        # M[0, 0] = 8.
+        # M[1, 1] = 5.
+        # M[1, 0] = 0.
+        # M[0, 1] = 0.
+        # M[0, 2] = 0.
+        # M[1, 2] = 1.
+        self.M = K.variable(M, name="{}_mask".format(self.name))
         self.trainable_weights = [self.W]
 
     def call(self, X, mask=None):
-        theta = self.W
-        theta = T.repeat(self.W.dimshuffle('x', 0, 1), X.shape[0], axis=0)
+        theta = self.W * self.M
+        theta = T.repeat(theta.dimshuffle('x', 0, 1), X.shape[0], axis=0)
         output = SpatialTransformer._transform(theta, X, self.downsample_factor)
 
         return output
@@ -213,42 +221,32 @@ class Homography(Layer):
 
 class DifferentiableRAM(Layer):
     """DifferentiableRAM uses Gaussian attention mechanism from DRAW [1]_
-    downsample_fator : float
-        A value of 1 will keep the orignal size of the image.
-        Values larger than 1 will down sample the image. Values below 1 will
-        upsample the image.
-        example image: height= 100, width = 100
-        downsample_factor = 2
-        output image will then be 50, 50 (pleaes, use square images)
+    out_grid: list (height, width)
     References
     ----------
     """
     def __init__(self,
                  localization_net,
-                 downsample_factor=1,
+                 out_grid,
                  return_theta=False,
                  **kwargs):
-        self.downsample_factor = downsample_factor
+        self.out_grid = out_grid
         self.locnet = localization_net
         self.return_theta = return_theta
         super(DifferentiableRAM, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        if hasattr(self, 'previous'):
-            self.locnet.set_previous(self.previous)
-        self.locnet.build()
+        self.locnet.build(input_shape)
         self.trainable_weights = self.locnet.trainable_weights
         self.regularizers = self.locnet.regularizers
         self.constraints = self.locnet.constraints
-        self.input = self.locnet.input  # This must be T.tensor4()
-        self.N_points = self.output_shape[-1]
-        self.width = self.input_shape[2]
-        self.height = self.input_shape[2]
+        self.width = input_shape[3]
+        self.height = input_shape[2]
 
     def output_shape_for(self, input_shape):
         return (None, input_shape[1],
-                int(input_shape[2] // self.downsample_factor),
-                int(input_shape[2] // self.downsample_factor))
+                int(self.out_grid[0]),
+                int(self.out_grid[1]))
 
     def call(self, X, mask=None):
         p = self.locnet.call(X)
@@ -261,22 +259,24 @@ class DifferentiableRAM(Layer):
             return output
 
     def _get_attention_params(self, p):
-        N = self.N_points
-        gx = self.width * (p[:, 0]+1) / 2.
-        gy = self.height * (p[:, 1]+1) / 2.
+        N = np.min(self.out_grid)
+        gx = self.out_grid[0] * (p[:, 0]+1) / 2.
+        gy = self.out_grid[1] * (p[:, 1]+1) / 2.
         sigma2 = T.exp(p[:, 2])
         delta = T.exp(p[:, 3]) * (max(self.width, self.height) - 1) / (N - 1.)
         gamma = T.exp(p[:, 4])
         return gx, gy, sigma2, delta, gamma
 
-    def _get_filterbank(self, gx, gy, sigma2, delta, N):
+    def _get_filterbank(self, gx, gy, sigma2, delta):
+        N = np.min(self.out_grid)
         small = 1e-4
-        i = T.arange(N).astype("float32")
+        i1 = T.arange(self.out_grid[0]).astype("float32")
+        i2 = T.arange(self.out_grid[1]).astype("float32")
         a = T.arange(self.width).astype("float32")
         b = T.arange(self.height).astype("float32")
 
-        mx = gx[:, None] + delta[:, None] * (i - N/2. - .5)
-        my = gy[:, None] + delta[:, None] * (i - N/2. - .5)
+        mx = gx[:, None] + delta[:, None] * (i1 - N/2. - .5)
+        my = gy[:, None] + delta[:, None] * (i2 - N/2. - .5)
 
         Fx = T.exp(-(a - mx[:, :, None])**2 / 2. / sigma2[:, None, None])
         Fx /= (Fx.sum(axis=-1)[:, :, None] + small)

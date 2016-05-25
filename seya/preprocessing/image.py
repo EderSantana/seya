@@ -13,8 +13,9 @@ def zca_whitening(inputs, epsilon=0.1):
 
 
 def contrast_normalization(inputs, batch_size=100):
+    X = K.placeholder(ndim=4)
     norm = NormLayer()
-    lcn = K.function([norm.get_input()], norm.get_output())
+    lcn = K.function([X], norm.call(X))
     return batchwise_function(lcn, inputs, batch_size=batch_size)
 
 
