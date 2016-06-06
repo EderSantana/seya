@@ -50,7 +50,6 @@ class SpatialTransformer(Layer):
                 int(input_shape[2] / self.downsample_factor),
                 int(input_shape[2] / self.downsample_factor))
 
-
     def call(self, X, mask=None):
         theta = self.locnet.call(X)
         theta = theta.reshape((X.shape[0], 2, 3))
@@ -193,8 +192,8 @@ class Homography(Layer):
 
     def build(self, input_shape):
         W = np.zeros((2, 3), dtype='float32')
-        W[0, 0] = .8
-        W[1, 1] = .5
+        W[0, 0] = .9
+        W[1, 1] = .9
         self.W = K.variable(W, name='{}_W'.format(self.name))
         M = np.ones((2, 3), dtype='float32')
         # M[0, 0] = 8.
@@ -208,6 +207,46 @@ class Homography(Layer):
 
     def call(self, X, mask=None):
         theta = self.W * self.M
+        theta = T.repeat(theta.dimshuffle('x', 0, 1), X.shape[0], axis=0)
+        output = SpatialTransformer._transform(theta, X, self.downsample_factor)
+
+        return output
+
+    def output_shape_for(self, input_shape):
+        return (None, input_shape[1],
+                int(input_shape[2] / self.downsample_factor),
+                int(input_shape[2] / self.downsample_factor))
+
+
+class Cropper(Layer):
+    """Homography layer
+    """
+    def __init__(self,
+                 downsample_factor=1,
+                 init_scale=1.,
+                 ratio=1.,
+                 **kwargs):
+        self.downsample_factor = downsample_factor
+        self.init_scale = init_scale
+        self.ratio = ratio
+        super(Cropper, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        W = np.zeros((4,), dtype='float32')
+        W[0] = self.init_scale
+        W[1] = self.init_scale
+        self.W = K.variable(W, name='{}_W'.format(self.name))
+        self.trainable_weights = [self.W]
+
+    def call(self, X, mask=None):
+        sx = self.W[0:1]
+        sy = self.W[1:2]
+        tx = self.W[2:3]
+        ty = self.W[3:]
+        zero = K.zeros((1,))
+        first_row = K.reshape(K.concatenate([sx, zero, tx]), (1, 3))
+        second_row = K.reshape(K.concatenate([zero, sy, ty]), (1, 3))
+        theta = K.concatenate([first_row, second_row], axis=0)
         theta = T.repeat(theta.dimshuffle('x', 0, 1), X.shape[0], axis=0)
         output = SpatialTransformer._transform(theta, X, self.downsample_factor)
 
@@ -289,3 +328,128 @@ class DifferentiableRAM(Layer):
         FxT = Fx.dimshuffle(0, 2, 1)
         FyxFx = (Fyx[:, :, :, :, None] * FxT[:, None, None, :, :]).sum(axis=3)
         return gamma[:, None, None, None] * FyxFx
+
+
+class Translate(Layer):
+    def __init__(self,
+                 localization_net,
+                 downsample_factor=1,
+                 scale=[1., 1.],
+                 **kwargs):
+        self.downsample_factor = downsample_factor
+        self.locnet = localization_net
+        self.scale = scale
+        self.return_theta = False
+        super(Translate, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.locnet.build(input_shape)
+        self.trainable_weights = self.locnet.trainable_weights
+        self.regularizers = self.locnet.regularizers
+        self.constraints = self.locnet.constraints
+
+    def output_shape_for(self, input_shape):
+        return (None, 3,
+                int(input_shape[2] / self.downsample_factor),
+                int(input_shape[2] / self.downsample_factor))
+
+    def call(self, X, mask=None):
+        vals = self.locnet.call(X)
+        tx = vals[:, 4:5]
+        ty = vals[:, 5:6]
+        # sx = self.W[0:1]
+        # sy = self.W[1:2]
+        zero = K.zeros_like(tx)
+        one = K.ones_like(tx)
+        first_row = K.reshape(K.concatenate([one, zero, tx], axis=1), (-1, 1, 3))
+        second_row = K.reshape(K.concatenate([zero, one, ty], axis=1), (-1, 1, 3))
+        theta = K.concatenate([first_row, second_row], axis=1)
+        theta = theta.reshape((X.shape[0], 2, 3))
+        output = SpatialTransformer._transform(theta, X, self.downsample_factor)
+
+        if self.return_theta:
+            return theta.reshape((X.shape[0], 6))
+        else:
+            return output
+
+
+class ProjectiveTransformer(Layer):
+    """Projective Transformer Layer
+    Implements a spatial transformer layer as described in [1]_.
+    This implements the full 3x3 homography.
+
+    downsample_fator : float
+        A value of 1 will keep the orignal size of the image.
+        Values larger than 1 will down sample the image. Values below 1 will
+        upsample the image.
+        example image: height= 100, width = 200
+        downsample_factor = 2
+        output image will then be 50, 100
+
+    References
+    ----------
+    .. [1]  Spatial Transformer Networks
+            Max Jaderberg, Karen Simonyan, Andrew Zisserman, Koray Kavukcuoglu
+            Submitted on 5 Jun 2015
+    .. [2]  https://github.com/skaae/transformer_network/blob/master/transformerlayer.py
+
+    """
+    def __init__(self,
+                 localization_net,
+                 downsample_factor=1,
+                 return_theta=False,
+                 **kwargs):
+        self.downsample_factor = downsample_factor
+        self.locnet = localization_net
+        self.return_theta = return_theta
+        super(SpatialTransformer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.locnet.build(input_shape)
+        self.trainable_weights = self.locnet.trainable_weights
+        self.regularizers = self.locnet.regularizers
+        self.constraints = self.locnet.constraints
+
+    def output_shape_for(self, input_shape):
+        return (input_shape[0], input_shape[1],
+                int(input_shape[2] / self.downsample_factor),
+                int(input_shape[3] / self.downsample_factor))
+
+    def call(self, X, mask=None):
+        theta = self.locnet.call(X)
+        theta = theta.reshape((X.shape[0], 3, 3))
+        output = self._transform(theta, X, self.downsample_factor)
+
+        if self.return_theta:
+            return theta.reshape((X.shape[0], 9))
+        else:
+            return output
+
+    @staticmethod
+    def _transform(theta, input, downsample_factor):
+        num_batch, num_channels, height, width = input.shape
+        theta = theta.reshape((num_batch, 3, 3))  # T.reshape(theta, (-1, 2, 3))
+
+        # grid of (x_t, y_t, 1), eq (1) in ref [1]
+        height_f = T.cast(height, floatX)
+        width_f = T.cast(width, floatX)
+        out_height = T.cast(height_f // downsample_factor, 'int64')
+        out_width = T.cast(width_f // downsample_factor, 'int64')
+        grid = SpatialTransformer._meshgrid(out_height, out_width)
+
+        # Transform A x (x_t, y_t, 1)^T -> (x_s / z_s, y_s / z_s)
+        T_g = T.dot(theta, grid)
+        x_s, y_s = T_g[:, 0] / T_g[:, 2], T_g[:, 1] / T_g[:, 2]
+        x_s_flat = x_s.flatten()
+        y_s_flat = y_s.flatten()
+
+        # dimshuffle input to  (bs, height, width, channels)
+        input_dim = input.dimshuffle(0, 2, 3, 1)
+        input_transformed = SpatialTransformer._interpolate(
+            input_dim, x_s_flat, y_s_flat,
+            downsample_factor)
+
+        output = T.reshape(input_transformed,
+                           (num_batch, out_height, out_width, num_channels))
+        output = output.dimshuffle(0, 3, 1, 2)
+        return output
