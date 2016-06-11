@@ -45,8 +45,8 @@ class SpatialTransformer(Layer):
         self.regularizers = self.locnet.regularizers
         self.constraints = self.locnet.constraints
 
-    def output_shape_for(self, input_shape):
-        return (None, 3,
+    def get_output_shape_for(self, input_shape):
+        return (None, int(input_shape[1]),
                 int(input_shape[2] / self.downsample_factor),
                 int(input_shape[2] / self.downsample_factor))
 
