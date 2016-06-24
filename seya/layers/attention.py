@@ -54,7 +54,7 @@ class SpatialTransformer(Layer):
         input_shape = self.input_shape
         return (None, input_shape[1],
                 int(input_shape[2] / self.downsample_factor),
-                int(input_shape[2] / self.downsample_factor))
+                int(input_shape[3] / self.downsample_factor))
 
     def get_output(self, train=False):
         X = self.get_input(train)
