@@ -48,7 +48,7 @@ class SpatialTransformer(Layer):
     def get_output_shape_for(self, input_shape):
         return (None, int(input_shape[1]),
                 int(input_shape[2] / self.downsample_factor),
-                int(input_shape[2] / self.downsample_factor))
+                int(input_shape[3] / self.downsample_factor))
 
     def call(self, X, mask=None):
         theta = self.locnet.call(X)
