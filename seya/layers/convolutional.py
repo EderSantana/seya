@@ -1,5 +1,6 @@
 from keras import backend as K
-from keras.layers.core import Layer, MaskedLayer
+from keras.layers.core import Layer
+from keras.layers.core import Masking as MaskedLayer # was renamed
 from theano import tensor as T  # , scan
 
 
