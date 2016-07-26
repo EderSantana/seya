@@ -164,14 +164,14 @@ class Stack(Recurrent):
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
-                inner_init=self.inner_init, consume_less='gpu')
+                inner_init=self.inner_init, consume_less='gpu', name="{}_inner_rnn".format(self.name))
         elif self.inner_rnn == 'lstm':
             self.rnn = LSTM(
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.rnn_size, init=self.init,
                 forget_bias_init='zero',
-                inner_init=self.inner_init, consume_less='gpu')
+                inner_init=self.inner_init, consume_less='gpu', name="{}_inner_rnn".format(self.name))
         else:
             raise ValueError('this inner_rnn is not implemented yet.')
 
@@ -180,35 +180,36 @@ class Stack(Recurrent):
         self.rnn.build(inner_shape)
 
 
-        self.init_h = K.zeros((self.rnn_size))
+        self.init_h = K.zeros((self.rnn_size), name="{}_init_h".format(self.name))
 
-        self.W_d = self.rnn.init((self.rnn_size,1))
-        self.W_u = self.rnn.init((self.rnn_size,1))
+        self.W_d = self.rnn.init((self.rnn_size,1), name="{}_W_d".format(self.name))
+        self.W_u = self.rnn.init((self.rnn_size,1), name="{}_W_u".format(self.name))
 
-        self.W_v = self.rnn.init((self.rnn_size,self.m_length))
-        self.W_o = self.rnn.init((self.rnn_size,self.output_dim))
+        self.W_v = self.rnn.init((self.rnn_size,self.m_length), name="{}_W_v".format(self.name))
+        self.W_o = self.rnn.init((self.rnn_size,self.output_dim), name="{}_W_o".format(self.name))
 
-        self.b_d = K.zeros((1,),name="b_d")
-        self.b_u = K.zeros((1,),name="b_u")
-        self.b_v = K.zeros((self.m_length,))
-        self.b_o = K.zeros((self.output_dim,))
+        self.b_d = K.zeros((1,), name="{}_b_d".format(self.name))
+        self.b_u = K.zeros((1,), name="{}_b_u".format(self.name))
+        self.b_v = K.zeros((self.m_length,), name="{}_b_v".format(self.name))
+        self.b_o = K.zeros((self.output_dim,), name="{}_b_o".format(self.name))
 
         
         self.trainable_weights = self.rnn.trainable_weights + [
            self.W_d, self.b_d,
-            self.W_v, self.b_v,
-            self.W_u,  self.b_u,
-            self.W_o, self.b_o, self.init_h]
+           self.W_v, self.b_v,
+           self.W_u,  self.b_u,
+           self.W_o, self.b_o, self.init_h]
 
         if self.inner_rnn == 'lstm':
-            self.init_c = K.zeros((self.rnn_size))
+            self.init_c = K.zeros((self.rnn_size), name="{}_init_c".format(self.name))
             self.trainable_weights = self.trainable_weights + [self.init_c, ]
-        #self.trainable_weights =[self.W_d]
-       
+			
+        if self.initial_weights is not None:
+            self.set_weights(self.initial_weights)
+            del self.initial_weight
 
     def get_initial_states(self, X):
-        
-        
+
         batch_size = X.shape[0]
         
         init_r = K.zeros((self.m_length)).dimshuffle('x',0).repeat(batch_size,axis=0)
@@ -218,7 +219,6 @@ class Stack(Recurrent):
 
         itime = K.zeros((1,),dtype=np.int32)
         
-
         if self.inner_rnn == 'lstm':
             init_c = self.init_c.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
             return [init_r , init_V,init_S,itime,init_h,init_c]
@@ -247,4 +247,15 @@ class Stack(Recurrent):
 
         return o_t, [r_t, V_t, s_t, time] + h_t
 
-    
+    def get_config(self):
+        config = {'output_dim': self.output_dim,
+		          'n_slots': self.n_slots,
+                  'm_length': self.m_length,
+                  'init': self.init,
+                  'inner_init': self.inner_init,
+                  'inner_rnn ': self.inner_rnn,
+                  'rnn_size': self.rnn_size,
+                  'stack': self.stack}
+        base_config = super(Stack, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
