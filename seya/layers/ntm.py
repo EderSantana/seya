@@ -117,14 +117,14 @@ class NeuralTuringMachine(Recurrent):
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
-                inner_init=self.inner_init, consume_less='gpu')
+                inner_init=self.inner_init, consume_less='gpu', name="{}_inner_rnn".format(self.name))
         elif self.inner_rnn == 'lstm':
             self.rnn = LSTM(
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
                 forget_bias_init='zero',
-                inner_init=self.inner_init, consume_less='gpu')
+                inner_init=self.inner_init, consume_less='gpu', name="{}_inner_rnn".format(self.name))
         else:
             raise ValueError('this inner_rnn is not implemented yet.')
 
@@ -133,32 +133,32 @@ class NeuralTuringMachine(Recurrent):
         self.rnn.build(inner_shape)
 		
         # initial memory, state, read and write vecotrs
-        self.M = theano.shared((.001*np.ones((1,)).astype(floatX)))
-        self.init_h = K.zeros((self.output_dim))
-        self.init_wr = self.rnn.init((self.n_slots,))
-        self.init_ww = self.rnn.init((self.n_slots,))
+        self.M = theano.shared((.001*np.ones((1,)).astype(floatX)), name="{}_M".format(self.name))
+        self.init_h = K.zeros((self.output_dim), name="{}_init_h".format(self.name))
+        self.init_wr = self.rnn.init((self.n_slots,), name="{}_init_wr".format(self.name))
+        self.init_ww = self.rnn.init((self.n_slots,), name="{}_init_ww".format(self.name))
 
         # write
-        self.W_e = self.rnn.init((self.output_dim, self.m_length))  # erase
-        self.b_e = K.zeros((self.m_length))
-        self.W_a = self.rnn.init((self.output_dim, self.m_length))  # add
-        self.b_a = K.zeros((self.m_length))
+        self.W_e = self.rnn.init((self.output_dim, self.m_length), name="{}_W_e".format(self.name))  # erase
+        self.b_e = K.zeros((self.m_length), name="{}_b_e".format(self.name))
+        self.W_a = self.rnn.init((self.output_dim, self.m_length), name="{}_W_a".format(self.name))  # add
+        self.b_a = K.zeros((self.m_length), name="{}_b_a".format(self.name))
 
         # get_w  parameters for reading operation
-        self.W_k_read = self.rnn.init((self.output_dim, self.m_length))
-        self.b_k_read = self.rnn.init((self.m_length, ))
-        self.W_c_read = self.rnn.init((self.output_dim, 3))  # 3 = beta, g, gamma see eq. 5, 7, 9
-        self.b_c_read = K.zeros((3))
-        self.W_s_read = self.rnn.init((self.output_dim, self.shift_range))
-        self.b_s_read = K.zeros((self.shift_range))  # b_s lol! not intentional
+        self.W_k_read = self.rnn.init((self.output_dim, self.m_length), name="{}_W_k_read".format(self.name))
+        self.b_k_read = self.rnn.init((self.m_length, ), name="{}_b_k_read".format(self.name))
+        self.W_c_read = self.rnn.init((self.output_dim, 3), name="{}_W_c_read".format(self.name))  # 3 = beta, g, gamma see eq. 5, 7, 9
+        self.b_c_read = K.zeros((3), name="{}_b_c_read".format(self.name))
+        self.W_s_read = self.rnn.init((self.output_dim, self.shift_range), name="{}_W_s_read".format(self.name))
+        self.b_s_read = K.zeros((self.shift_range), name="{}_b_s_read".format(self.name))  # b_s lol! not intentional
 
         # get_w  parameters for writing operation
-        self.W_k_write = self.rnn.init((self.output_dim, self.m_length))
-        self.b_k_write = self.rnn.init((self.m_length, ))
-        self.W_c_write = self.rnn.init((self.output_dim, 3))  # 3 = beta, g, gamma see eq. 5, 7, 9
-        self.b_c_write = K.zeros((3))
-        self.W_s_write = self.rnn.init((self.output_dim, self.shift_range))
-        self.b_s_write = K.zeros((self.shift_range))
+        self.W_k_write = self.rnn.init((self.output_dim, self.m_length), name="{}_W_k_write".format(self.name))
+        self.b_k_write = self.rnn.init((self.m_length, ), name="{}_b_k_write".format(self.name))
+        self.W_c_write = self.rnn.init((self.output_dim, 3), name="{}_W_c_write".format(self.name))  # 3 = beta, g, gamma see eq. 5, 7, 9
+        self.b_c_write = K.zeros((3), name="{}_b_c_write".format(self.name))
+        self.W_s_write = self.rnn.init((self.output_dim, self.shift_range), name="{}_W_s_write".format(self.name))
+        self.b_s_write = K.zeros((self.shift_range), name="{}_b_s_write".format(self.name))
 
         self.C = _circulant(self.n_slots, self.shift_range)
 
@@ -175,8 +175,12 @@ class NeuralTuringMachine(Recurrent):
             self.init_h, self.init_wr, self.init_ww]
 
         if self.inner_rnn == 'lstm':
-            self.init_c = K.zeros((self.output_dim))
+            self.init_c = K.zeros((self.output_dim), name="{}_init_c".format(self.name))
             self.trainable_weights = self.trainable_weights + [self.init_c, ]
+
+        if self.initial_weights is not None:
+            self.set_weights(self.initial_weights)
+            del self.initial_weight
 
     def _read(self, w, M):
         return (w[:, :, None]*M).sum(axis=1)
@@ -302,3 +306,14 @@ class NeuralTuringMachine(Recurrent):
         M_t = M_t.flatten(ndim=2)
 
         return h_t[0], [M_t, wr_t, ww_t] + h_t
+
+    def get_config(self):
+        config = {'output_dim': self.output_dim,
+		  'n_slots': self.n_slots,
+                  'm_length': self.m_length,
+                  'shift_range': self.shift_range,
+                  'init': self.init,
+                  'inner_init': self.inner_init,
+                  'inner_rnn ': self.inner_rnn}
+        base_config = super(NeuralTuringMachine, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
