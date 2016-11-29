@@ -2,17 +2,14 @@
 Seya
 ===============================
 
-.. image:: https://travis-ci.org/EderSantana/seya.svg?branch=master
-        :target: https://travis-ci.org/edersantana/seya
-
-.. image:: https://img.shields.io/pypi/v/seya.svg
-        :target: https://pypi.python.org/pypi/seya
-
-
 Bringing up some extra Cosmo to Keras.
 
 * Free software: BSD license
 * Documentation: https://seya.readthedocs.org.
+
+Note: This code base was built with Keras 0.3. There is a branch called `keras1` where some of the layers were updated to work 
+with the new API. To makes things easier to maintain, I'll start publishing individual models as self-contained github
+repositories and cross-reference them here. 
 
 Why Seya?
 ---------
