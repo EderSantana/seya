@@ -55,7 +55,7 @@ def convert_videos_to_hdf5(hdf5file, filepath,
             process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
             process.wait()
 
-            imgs = glob(os.path.join(f[:-4], '*.jpg'))
+            imgs = sorted(glob(os.path.join(f[:-4], '*.jpg')))
             for c2, im in enumerate(imgs[:frame_range[-1]]):
                 I = imread(im)[row_range, col_range]
                 if I.shape[:2] != img_shape:
@@ -65,7 +65,7 @@ def convert_videos_to_hdf5(hdf5file, filepath,
             if label_callback is not None:
                 y[c1] = label_callback(f)
 
-            process = subprocess.Popen('rm {}'.format(f[:-4]), shell=True, stdout=subprocess.PIPE)
+            process = subprocess.Popen('rm -rf {}'.format(f[:-4]), shell=True, stdout=subprocess.PIPE)
             process.wait()
 
     with open(hdf5file+'.txt', 'w') as file_order:
