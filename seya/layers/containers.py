@@ -176,8 +176,8 @@ class Recursive(Layer):
                                  'inputs': inputs,
                                  'merge_mode': merge_mode})
         layer.init_updates()
-       .trainable_weights, regularizers, constraints, updates = layer.get.trainable_weights()
-        self.trainable_weights +=.trainable_weights
+        trainable_weights, regularizers, constraints, updates = layer.get.trainable_weights()
+        self.trainable_weights += trainable_weights
         self.regularizers += regularizers
         self.constraints += constraints
         self.updates += updates

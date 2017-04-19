@@ -108,7 +108,7 @@ class DRAW(Recurrent):
     def init_updates(self):
         self.get_output(train=True)  # populate regularizers list
 
-    def _get_attention.trainable_weights(self, h, L, b, N):
+    def _get_attention_trainable_weights(self, h, L, b, N):
         p = T.dot(h, L) + b
         gx = self.width * (p[:, 0]+1) / 2.
         gy = self.height * (p[:, 1]+1) / 2.
@@ -205,7 +205,7 @@ class DRAW(Recurrent):
 
     def _step(self, eps, canvas, h_enc, h_dec, x, *args):
         x_hat = x - self.canvas_activation(canvas)
-        gx, gy, sigma2, delta, gamma = self._get_attention.trainable_weights(
+        gx, gy, sigma2, delta, gamma = self._get_attention_trainable_weights(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
@@ -221,7 +221,7 @@ class DRAW(Recurrent):
         new_h_dec = self._get_rnn_state(self.dec, x_dec_z, x_dec_r, x_dec_h,
                                         h_dec)
 
-        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention.trainable_weights(
+        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_trainable_weights(
             new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)
@@ -232,7 +232,7 @@ class DRAW(Recurrent):
     def _step_lstm(self, eps, canvas, h_enc, cell_enc,
                    h_dec, cell_dec, x, *args):
         x_hat = x - self.canvas_activation(canvas)
-        gx, gy, sigma2, delta, gamma = self._get_attention.trainable_weights(
+        gx, gy, sigma2, delta, gamma = self._get_attention_trainable_weights(
             h_dec, self.L_enc, self.b_enc, self.N_enc)
         Fx, Fy = self._get_filterbank(gx, gy, sigma2, delta, self.N_enc)
         read_x = self._read(x, gamma, Fx, Fy).flatten(ndim=2)
@@ -250,7 +250,7 @@ class DRAW(Recurrent):
         new_h_dec, new_cell_dec = self._get_rnn_state(
             self.dec, x_dec_i, x_dec_f, x_dec_c, x_dec_o, h_dec, cell_dec)
 
-        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention.trainable_weights(
+        gx_w, gy_w, sigma2_w, delta_w, gamma_w = self._get_attention_trainable_weights(
             new_h_dec, self.L_dec, self.b_dec, self.N_dec)
         Fx_w, Fy_w = self._get_filterbank(gx_w, gy_w, sigma2_w, delta_w,
                                           self.N_dec)

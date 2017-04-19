@@ -6,6 +6,7 @@ floatX = theano.config.floatX
 
 from keras.layers.recurrent import Recurrent, GRU, LSTM
 from keras import backend as K
+from keras.engine import InputSpec
 
 from seya.utils import rnn_states
 tol = 1e-4
@@ -106,9 +107,9 @@ class NeuralTuringMachine(Recurrent):
             kwargs['input_shape'] = (self.input_length, self.input_dim)
         super(NeuralTuringMachine, self).__init__(**kwargs)
 
-    def build(self):
-        input_leng, input_dim = self.input_shape[1:]
-        self.input = T.tensor3()
+    def build(self, input_shape):
+        self.input_spec = [InputSpec(shape=input_shape)]
+        input_leng, input_dim = input_shape[1:]
 
         if self.inner_rnn == 'gru':
             self.rnn = GRU(
@@ -116,19 +117,21 @@ class NeuralTuringMachine(Recurrent):
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
-                inner_init=self.inner_init)
+                inner_init=self.inner_init, consume_less='gpu')
         elif self.inner_rnn == 'lstm':
             self.rnn = LSTM(
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
                 forget_bias_init='zero',
-                inner_init=self.inner_init)
+                inner_init=self.inner_init, consume_less='gpu')
         else:
             raise ValueError('this inner_rnn is not implemented yet.')
 
-        self.rnn.build()
-
+        inner_shape = list(input_shape)
+        inner_shape[-1] = input_dim+self.m_length
+        self.rnn.build(inner_shape)
+		
         # initial memory, state, read and write vecotrs
         self.M = theano.shared((.001*np.ones((1,)).astype(floatX)))
         self.init_h = K.zeros((self.output_dim))
@@ -221,9 +224,7 @@ class NeuralTuringMachine(Recurrent):
             return [init_M, T.nnet.softmax(init_wr), T.nnet.softmax(init_ww),
                     init_h]
 
-    @property
-    def output_shape(self):
-        input_shape = self.input_shape
+    def get_output_shape_for(self, input_shape):
         if self.return_sequences:
             return input_shape[0], input_shape[1], self.output_dim
         else:

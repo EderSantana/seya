@@ -7,6 +7,7 @@ floatX = theano.config.floatX
 
 from keras.layers.recurrent import Recurrent, GRU, LSTM
 from keras import backend as K
+from keras.engine import InputSpec
 
 tol = 1e-4
 
@@ -153,9 +154,9 @@ class Stack(Recurrent):
             kwargs['input_shape'] = (self.input_length, self.input_dim)
         super(Stack, self).__init__(**kwargs)
 
-    def build(self):
-        input_leng, input_dim = self.input_shape[1:]
-        self.input = T.tensor3()
+    def build(self, input_shape):
+        self.input_spec = [InputSpec(shape=input_shape)]
+        input_leng, input_dim = input_shape[1:]
 
         if self.inner_rnn == 'gru':
             self.rnn = GRU(
@@ -163,18 +164,20 @@ class Stack(Recurrent):
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.output_dim, init=self.init,
-                inner_init=self.inner_init)
+                inner_init=self.inner_init, consume_less='gpu')
         elif self.inner_rnn == 'lstm':
             self.rnn = LSTM(
                 input_dim=input_dim+self.m_length,
                 input_length=input_leng,
                 output_dim=self.rnn_size, init=self.init,
                 forget_bias_init='zero',
-                inner_init=self.inner_init)
+                inner_init=self.inner_init, consume_less='gpu')
         else:
             raise ValueError('this inner_rnn is not implemented yet.')
 
-        self.rnn.build()
+        inner_shape = list(input_shape)
+        inner_shape[-1] = input_dim+self.m_length
+        self.rnn.build(inner_shape)
 
 
         self.init_h = K.zeros((self.rnn_size))
@@ -220,41 +223,28 @@ class Stack(Recurrent):
             init_c = self.init_c.dimshuffle(('x', 0)).repeat(batch_size, axis=0)
             return [init_r , init_V,init_S,itime,init_h,init_c]
       
-    @property
-    def output_shape(self):
-        input_shape = self.input_shape
+    def get_output_shape_for(self, input_shape):
         if self.return_sequences:
             return input_shape[0], input_shape[1], self.output_dim
         else:
             return input_shape[0], self.output_dim
 
     def step(self, x, states):
-        
         r_tm1, V_tm1,s_tm1,time = states[:4]
         h_tm1 = states[4:]
- 
-        
-        
-        r_tm1 = r_tm1
-        
+
         op_t, h_t = _update_controller(self, T.concatenate([x, r_tm1], axis=-1),
                                              h_tm1)
               
-       # op_t = op_t  + print_name_shape("W_d",self.W_d.get_value()) 
-        op_t = op_t
-        #op_t = op_t[:,0,:]
         d_t = K.sigmoid( K.dot(op_t, self.W_d)  + self.b_d)  
         u_t = K.sigmoid(K.dot(op_t, self.W_u) + self.b_u)
         v_t = K.tanh(K.dot(op_t, self.W_v) + self.b_v)
         o_t = K.tanh(K.dot(op_t, self.W_o) + self.b_o) 
         
-        
         time = time + 1
         V_t, s_t, r_t = _update_neural_stack(self, V_tm1, s_tm1, d_t[::,0], 
                                              u_t[::,0], v_t,time[0],stack=self.stack)
-        
 
-       
         return o_t, [r_t, V_t, s_t, time] + h_t
 
     
